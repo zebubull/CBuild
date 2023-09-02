@@ -3,6 +3,8 @@
 #include <windows.h>
 #include <stdbool.h>
 
+#include "cbmem.h"
+
 dir_t dir_init() {
     dir_t dir;
     dir.dir_names = cbstr_list_init(4);
@@ -50,6 +52,8 @@ void walk_dir_recursive(dir_t *dir, cbstr_t path) {
             entry_list_push(&dir->entries, entry);
         }
     } while (FindNextFileA(walk_handle, &find));
+
+    cbstr_free(&root);
 }
 
 dir_t walk_dir(cbstr_t path) {
@@ -62,14 +66,14 @@ dir_t walk_dir(cbstr_t path) {
 }
 
 entry_list_t entry_list_init(size_t cap) {
-    entry_list_t list = {.cap = cap, .len = 0, .entries = malloc(cap * sizeof(dir_entry_t))};
+    entry_list_t list = {.cap = cap, .len = 0, .entries = MALLOC(cap * sizeof(dir_entry_t))};
     return list;
 }
 
 void entry_list_push(entry_list_t *list, dir_entry_t entry) {
     if (list->len == list->cap) {
         list->cap = (list->cap << 1) - (list->cap >> 1);
-        list->entries = realloc(list->entries, list->cap * sizeof(dir_entry_t));
+        list->entries = REALLOC(list->entries, list->cap * sizeof(dir_entry_t));
     }
 
     list->entries[list->len] = entry;
@@ -85,5 +89,5 @@ void entry_list_free(entry_list_t *list) {
     for (size_t i = 0; i < list->len; ++i) {
         cbstr_free(&list->entries[i].filename);
     }
-    free(list->entries);
+    FREE(list->entries);
 }

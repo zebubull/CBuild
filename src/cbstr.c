@@ -1,20 +1,30 @@
 #include "cbstr.h"
-#include <malloc.h>
+
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdarg.h>
 
-cbstr_t cbstr_from_cstr(char *cstr, size_t len) {
+#include "cbmem.h"
+
+#ifndef RELEASE
+#define FMALLOC(len) MALLOCW(len, file, l)
+#define FFREE(ptr) FREEW(ptr, file, l)
+#else
+#define FMALLOC(len) MALLOC(len)
+#define FFREE(ptr) FREE(ptr)
+#endif
+
+cbstr_t ALLOC_DEF(cbstr_from_cstr, char *cstr, size_t len) {
     cbstr_t str;
 
     if (cstr[len-1] != '\0') {
         ++len;
-        str.data = malloc(len);
+        str.data = FMALLOC(len);
         memcpy(str.data, cstr, len-1);
         str.data[len-1] = 0;
     } else {
-        str.data = malloc(len);
+        str.data = FMALLOC(len);
         memcpy(str.data, cstr, len);
     }
 
@@ -25,22 +35,22 @@ cbstr_t cbstr_from_cstr(char *cstr, size_t len) {
     return str;
 }
 
-cbstr_t cbstr_copy(cbstr_t *str) {
+cbstr_t ALLOC_DEF(cbstr_copy, cbstr_t *str) {
     cbstr_t new_str;
     new_str.len = str->len;
     new_str.capacity = str->len;
 
-    new_str.data = malloc(new_str.capacity);
+    new_str.data = FMALLOC(new_str.capacity);
     memcpy(new_str.data, str->data, new_str.capacity);
 
     return new_str;
 }
 
-cbstr_t cbstr_with_cap(size_t cap) {
+cbstr_t ALLOC_DEF(cbstr_with_cap, size_t cap) {
     cbstr_t str;
     str.len = cap;
     str.capacity = cap;
-    str.data = malloc(cap);
+    str.data = FMALLOC(cap);
     cbstr_clear(&str);
     return str;
 }
@@ -50,8 +60,8 @@ void cbstr_clear(cbstr_t* str) {
     str->len = 0;
 }
 
-void cbstr_free(cbstr_t *str) {
-    free(str->data);
+void ALLOC_DEF(cbstr_free, cbstr_t *str) {
+    FFREE(str->data);
     str->capacity = 0;
     str->len = 0;
 }
@@ -86,7 +96,7 @@ void cbstr_concat_cstr(cbstr_t *a, const char *b, size_t len) {
 
     if (a->capacity < new_len) {
         size_t new_cap = (new_len << 1) - (new_len >> 1);
-        a->data = realloc(a->data, new_cap);
+        a->data = REALLOC(a->data, new_cap);
         a->capacity = new_cap;
     }
     
@@ -110,15 +120,26 @@ bool cbstr_cmp(cbstr_t *a, cbstr_t *b) {
     return true;
 }
 
-cbstr_list_t cbstr_list_init(size_t cap) {
-    cbstr_list_t list = {.cap = cap, .len = 0, .strings = malloc(cap * sizeof(cbstr_t))};
+cbstr_list_t ALLOC_DEF(cbstr_list_init, size_t cap) {
+    cbstr_list_t list = {.cap = cap, .len = 0, .strings = MALLOC(cap * sizeof(cbstr_t))};
     return list;
+}
+
+void ALLOC_DEF(cbstr_list_free, cbstr_list_t *list) {
+    for (size_t i = 0; i < list->len; ++i) {
+        #ifndef RELEASE
+        d_cbstr_free(&list->strings[i], file, l);
+        #else
+        cbstr_free(&list->strings[i]);
+        #endif
+    }
+    FFREE(list->strings);
 }
 
 void cbstr_list_push(cbstr_list_t *list, cbstr_t str) {
     if (list->len == list->cap) {
         list->cap = (list->cap << 2) - (list->cap >> 1);
-        list->strings = realloc(list->strings, list->cap * sizeof(cbstr_t));
+        list->strings = REALLOC(list->strings, list->cap * sizeof(cbstr_t));
     }
 
     list->strings[list->len] = str;
@@ -128,11 +149,4 @@ void cbstr_list_push(cbstr_list_t *list, cbstr_t str) {
 cbstr_t* cbstr_list_get(cbstr_list_t *list, size_t item) {
     if (item > list->len) return NULL;
     return &list->strings[item];
-}
-
-void cbstr_list_free(cbstr_list_t *list) {
-    for (size_t i = 0; i < list->len; ++i) {
-        cbstr_free(&list->strings[i]);
-    }
-    free(list->strings);
 }

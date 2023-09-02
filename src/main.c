@@ -5,7 +5,9 @@
 #include <stdlib.h>
 #include <windows.h>
 #include <stdbool.h>
+
 #include "dir.h"
+#include "cbmem.h"
 
 #define FLEN(FILE, X) fseek(FILE, 0, SEEK_END);\
 X = ftell(FILE);\
@@ -126,12 +128,14 @@ cbstr_t build_object_command(cbuild_conf_t *conf, cbstr_t *buffer, cbstr_t *file
 
 void compile(cbuild_conf_t *conf, dir_t *files) {
     #define FREE_ALL() cbstr_list_free(&objects);\
-    cbstr_free(&command)
+    cbstr_free(&command);\
+    cbstr_free(&temp)
 
     cbstr_list_t objects = cbstr_list_init(files->entries.len >> 1);
     size_t pos;
     size_t i;
     int ret_val;
+    cbstr_t temp;
 
     cbstr_t command = cbstr_with_cap(COMMAND_SIZE);
 
@@ -161,15 +165,14 @@ void compile(cbuild_conf_t *conf, dir_t *files) {
     }
 
     cbstr_concat_cstr(&conf->project, ".exe", sizeof(".exe"));
+    temp = cbstr_from_cstr(".cbuild\\", sizeof(".cbuild\\"));
+    cbstr_concat(&temp, &conf->project);
+    cbstr_concat_cstr(&temp, ".tmp", sizeof(".tmp"));
 
     if (conf->cache) {
         printf("[INFO] Relocating .exe to cache...\n");
-        cbstr_t temp = cbstr_from_cstr(".cbuild\\", sizeof(".cbuild\\"));
-        cbstr_concat(&temp, &conf->project);
-        cbstr_concat_cstr(&temp, ".tmp", sizeof(".tmp"));
         DeleteFileA(temp.data);
         MoveFileA(conf->project.data, temp.data);
-        cbstr_free(&temp);
     }
 
     cbstr_clear(&command);
@@ -186,6 +189,7 @@ void compile(cbuild_conf_t *conf, dir_t *files) {
 
     if (ret_val != 0) {
         printf("[ERROR] '%s' failed with code %d!\n", command, ret_val);
+        MoveFileA(temp.data, conf->project.data);
     }
 
     FREE_ALL();
@@ -198,6 +202,8 @@ int main(void) {
     char *config_data;
     cbuild_conf_t config;
 
+    DEBUG_INIT();
+
     cbuild = fopen("cbuild", "rb");
     if (!cbuild) {
         printf("[ERROR] Could not load cbuild config file...\n");
@@ -205,12 +211,12 @@ int main(void) {
     }
 
     FLEN(cbuild, length);
-    config_data = (char*)malloc(length);
+    config_data = (char*)MALLOC(length);
     fread(config_data, length, 1, cbuild);
     fclose(cbuild);
 
     config = load_conf(config_data, length);
-    free(config_data);
+    FREE(config_data);
 
     dir_t files = walk_dir(config.source);
 
@@ -219,5 +225,6 @@ int main(void) {
     free_conf(&config);
     free_dir(&files);
     
+    DEBUG_DEINIT();
     return 0;
 }
