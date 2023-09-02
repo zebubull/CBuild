@@ -18,18 +18,18 @@ fseek(FILE, 0, SEEK_SET)
 typedef struct cbuild_conf {
     cbstr_t source;
     cbstr_t project;
+    cbstr_list_t defines;
+    cbstr_list_t flags;
     bool cache;
 } cbuild_conf_t;
 
-size_t next(const char *string, size_t start, size_t len) {
-    size_t i = start;
-    if (string[i] == 0x0A) {
+size_t next(const char *string, size_t *start, size_t len) {
+    size_t i = *start;
+    while (isspace(string[i])) {
         ++i;
     }
 
-    if (string[i] == 0x0D) {
-        ++i;
-    }
+    *start = i;
 
     for (; i < len; ++i) {
         if (string[i] == ' ' || string[i] == 0x0A) {
@@ -38,27 +38,56 @@ size_t next(const char *string, size_t start, size_t len) {
         }
     }
 
-    return i - start;
+    return i - *start;
 }
 
-cbuild_conf_t load_conf(char *buffer, size_t len) {
+cbuild_conf_t load_conf(char *buffer, size_t len, int argc, char **argv) {
+    cbstr_t rule;
     cbuild_conf_t config;
     config.cache = false;
+    config.defines = cbstr_list_init(4);
+    config.flags = cbstr_list_init(4);
     bool has_source = false;
     bool has_proj = false;
+    bool ignore_rule = false;
+
+    if (argc > 1) {
+        rule = cbstr_from_cstr(argv[1], strnlen(argv[1], 64));
+    } else {
+        rule = cbstr_from_cstr("default", sizeof("default"));
+    }
 
     size_t pos = 0;
     size_t size = 0;
 
     while (1) {
-        size = next(buffer, pos, len);
+        size = next(buffer, &pos, len);
 
         if (size == 0) break;
 
+        if (strncmp(&buffer[pos], "rule", size) == 0) {
+            pos += size + 1;
+            size = next(buffer, &pos, len);
+            if (strncmp(rule.data, "default", rule.len) == 0) {
+                cbstr_clear(&rule);
+                cbstr_concat_cstr(&rule, &buffer[pos], size);
+            }
+            ignore_rule = strncmp(&buffer[pos], rule.data, size) != 0;
+        }
+
+        if (strncmp(&buffer[pos], "endrule", size) == 0) {
+            ignore_rule = false;
+        }
+
+        if (ignore_rule) {
+            pos += size + 1;
+            continue;
+        }
+
         if (strncmp(&buffer[pos], "source", size) == 0) {
             if (!has_source) {
-                pos += size + 2;
-                size = next(buffer, pos, len);
+                pos += size + 1;
+                size = next(buffer, &pos, len);
                 config.source = cbstr_from_cstr(&buffer[pos], size);
                 has_source = true;
             } else {
@@ -66,32 +95,44 @@ cbuild_conf_t load_conf(char *buffer, size_t len) {
             }
         } else if (strncmp(&buffer[pos], "project", size) == 0) {
             if (!has_proj) {
-                pos += size + 2;
-                size = next(buffer, pos, len);
+                pos += size + 1;
+                size = next(buffer, &pos, len);
                 config.project = cbstr_from_cstr(&buffer[pos], size);
                 has_proj = true;
             } else {
                 printf("[ERROR] Multiple definition of project\n");
             }
         } else if (strncmp(&buffer[pos], "cache", size) == 0) {
-                pos += size + 2;
-                size = next(buffer, pos, len);
-                config.cache = strncmp(&buffer[pos], "on", size) == 0;
+            pos += size + 1;
+            size = next(buffer, &pos, len);
+            config.cache = strncmp(&buffer[pos], "on", size) == 0;
+        } else if (strncmp(&buffer[pos], "define", size) == 0) {
+            pos += size + 1;
+            size = next(buffer, &pos, len);
+            cbstr_list_push(&config.defines, cbstr_from_cstr(&buffer[pos], size));
+        } else if (strncmp(&buffer[pos], "flag", size) == 0) {
+            pos += size + 1;
+            size = next(buffer, &pos, len);
+            cbstr_list_push(&config.flags, cbstr_from_cstr(&buffer[pos], size));
         }
 
-        pos += size + 2;
+        pos += size + 1;
     }
 
     if (!has_proj || !has_source) {
         printf("[ERROR] not enough information specified in cbuild...\n");
         exit(1);
     }
+
+    cbstr_free(&rule);
     return config;
 }
 
 void free_conf(cbuild_conf_t *conf) {
     cbstr_free(&conf->source);
     cbstr_free(&conf->project);
+    cbstr_list_free(&conf->defines);
+    cbstr_list_free(&conf->flags);
 }
 
 
@@ -101,14 +142,28 @@ void obj_sub(char *file, size_t len) {
 }
 
 cbstr_t build_object_command(cbuild_conf_t *conf, cbstr_t *buffer, cbstr_t *file, cbstr_t *parent) {
+    size_t i;
+    cbstr_t object;
+
     cbstr_clear(buffer);
-    cbstr_concat_cstr(buffer, "gcc -g -c ", sizeof("gcc -g -c "));
+    cbstr_concat_cstr(buffer, "gcc -c ", sizeof("gcc -c "));
+
+    for (i = 0; i < conf->defines.len; ++i) {
+        cbstr_concat_cstr(buffer, "-D", sizeof("-D"));
+        cbstr_concat(buffer, cbstr_list_get(&conf->defines, i));
+        cbstr_concat_cstr(buffer, " ", sizeof(" "));
+    }
+
+    for (i = 0; i < conf->flags.len; ++i) {
+        cbstr_concat(buffer, cbstr_list_get(&conf->flags, i));
+        cbstr_concat_cstr(buffer, " ", sizeof(" "));
+    }
 
     cbstr_concat(buffer, parent);
     cbstr_concat_cstr(buffer, "\\", sizeof("\\"));
     cbstr_concat(buffer, file);
 
-    cbstr_t object = cbstr_from_cstr("obj\\", sizeof("obj\\"));
+    object = cbstr_from_cstr("obj\\", sizeof("obj\\"));
     cbstr_concat_slice(&object, parent, conf->source.len);
 
     CreateDirectoryA(object.data, NULL);
@@ -196,7 +251,7 @@ void compile(cbuild_conf_t *conf, dir_t *files) {
     #undef FREE_ALL
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     FILE *cbuild;
     size_t length;
     char *config_data;
@@ -215,7 +270,7 @@ int main(void) {
     fread(config_data, length, 1, cbuild);
     fclose(cbuild);
 
-    config = load_conf(config_data, length);
+    config = load_conf(config_data, length, argc, argv);
     FREE(config_data);
 
     dir_t files = walk_dir(config.source);
