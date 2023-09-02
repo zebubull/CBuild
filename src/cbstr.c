@@ -7,13 +7,6 @@
 
 #include "cbmem.h"
 
-#ifndef RELEASE
-#define FMALLOC(len) MALLOCW(len, file, l)
-#define FFREE(ptr) FREEW(ptr, file, l)
-#else
-#define FMALLOC(len) MALLOC(len)
-#define FFREE(ptr) FREE(ptr)
-#endif
 
 cbstr_t ALLOC_DEF(cbstr_from_cstr, char *cstr, size_t len) {
     cbstr_t str;
@@ -121,7 +114,7 @@ bool cbstr_cmp(cbstr_t *a, cbstr_t *b) {
 }
 
 cbstr_list_t ALLOC_DEF(cbstr_list_init, size_t cap) {
-    cbstr_list_t list = {.cap = cap, .len = 0, .strings = MALLOC(cap * sizeof(cbstr_t))};
+    cbstr_list_t list = {.cap = cap, .len = 0, .strings = FMALLOC(cap * sizeof(cbstr_t))};
     return list;
 }
 

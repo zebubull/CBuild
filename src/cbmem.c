@@ -22,7 +22,7 @@ static size_t expensive_reallocs = 0;
 
 static alloc_list_t alloc_list_init(size_t capacity) {
     alloc_list_t list;
-    list.allocs = (alloc_t*)malloc(capacity * sizeof(alloc_t));
+    list.allocs = (alloc_t*)CBMALLOC(capacity * sizeof(alloc_t));
     list.len = 0;
     list.capacity = capacity;
     return list;
@@ -31,7 +31,7 @@ static alloc_list_t alloc_list_init(size_t capacity) {
 static void alloc_list_push(alloc_list_t *list, alloc_t alloc) {
     if (list->len == list->capacity) {
         list->capacity = (list->capacity << 1) - (list->capacity >> 1);
-        list->allocs = (alloc_t*)realloc(list->allocs, list->capacity * sizeof(alloc_t));
+        list->allocs = (alloc_t*)CBREALLOC(list->allocs, list->capacity * sizeof(alloc_t));
     }
 
     list->allocs[list->len] = alloc;
@@ -106,7 +106,7 @@ void debug_free(void *ptr, const char *file, size_t line) {
     if (alloc->freed) {
         printf("[DFREE] %p double freed at %s:%d, alloc from %s:%d!\n", ptr, file, line, alloc->file, alloc->line);
     } else {
-        free(alloc->ptr);
+        CBFREE(alloc->ptr);
         alloc->freed = true;
     }
 }
@@ -114,7 +114,7 @@ void debug_free(void *ptr, const char *file, size_t line) {
 void *debug_realloc(void *ptr, size_t size) {
     void *new_ptr;
 
-    new_ptr = realloc(ptr, size);
+    new_ptr = CBREALLOC(ptr, size);
 
     if (new_ptr != ptr) {
         ++expensive_reallocs;
