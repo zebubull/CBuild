@@ -1,0 +1,3 @@
+source src
+project cbuild
+cache on
