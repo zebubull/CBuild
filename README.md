@@ -6,11 +6,11 @@ this. Feel free to check it out if you'd like, but please don't expect it
 to be anything amazing.
 
 ## Features (listed in order of priority)
-[x] Build multi-file c projects
-[x] Simple configuration language
-[ ] Incremental compilation
-[ ] Library support
-[ ] Linux support
+- [x] Build multi-file c projects
+- [x] Simple configuration language
+- [ ] Incremental compilation
+- [ ] Library support
+- [ ] Linux support
 
 ## Use
 The repo comes with `bootstrap.exe`, a precompiled version of cbuild that can 
