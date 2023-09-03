@@ -21,6 +21,7 @@
 
 #ifndef RELEASE
 
+#define ALLOC_DEF(func, ...) d_ ## func(__VA_ARGS__, const char *file, size_t l)
 #define MALLOC(s) debug_alloc(s, __FILE__, __LINE__)
 #define FREE(p) debug_free(p, __FILE__, __LINE__)
 
@@ -37,6 +38,7 @@
 
 #else
 
+#define ALLOC_DEF(func, ...) func(__VA_ARGS__)
 #define MALLOC(s) CBMALLOC(s)
 #define FREE(p) CBFREE(p)
 

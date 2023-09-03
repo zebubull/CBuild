@@ -1,5 +1,6 @@
 #pragma once
 #include <stdbool.h>
+#include <stdint.h>
 #include "cbstr.h"
 
 #ifndef _WIN32
@@ -9,6 +10,7 @@
 typedef struct dir_entry {
     size_t parent;
     cbstr_t filename;
+    int64_t write_time;
 } dir_entry_t;
 
 typedef struct entry_list {

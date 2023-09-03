@@ -76,9 +76,15 @@ void cbstr_concat_cstr(cbstr_t *a, const char *b, size_t len) {
     // Null terminator of first string is discarded
     size_t target;
     size_t new_len;
+    bool needs_zero = false;
     if (len == 0) return;
 
     new_len = a->len + len - 1;
+
+    if (b[len-1] != 0) {
+        needs_zero = true;
+        ++new_len;
+    }
 
     if (a->len == 0) {
         target = 0;
@@ -95,6 +101,10 @@ void cbstr_concat_cstr(cbstr_t *a, const char *b, size_t len) {
     
     memcpy(a->data + target, b, len);
     a->len = new_len;
+
+    if (needs_zero) {
+        a->data[new_len] = 0;
+    }
 }
 
 bool cbstr_cmp(cbstr_t *a, cbstr_t *b) {

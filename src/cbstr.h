@@ -1,4 +1,6 @@
 #pragma once
+
+#include "cbmem.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -15,7 +17,6 @@ typedef struct cbstr_list {
 } cbstr_list_t;
 
 #ifndef RELEASE
-#define ALLOC_DEF(func, ...) d_ ## func(__VA_ARGS__, const char *file, size_t l)
 
 #define cbstr_from_cstr(cstr, len) d_cbstr_from_cstr(cstr, len, __FILE__, __LINE__)
 #define cbstr_with_cap(cap) d_cbstr_with_cap(cap, __FILE__, __LINE__)
@@ -26,7 +27,6 @@ typedef struct cbstr_list {
 #define cbstr_list_free(list) d_cbstr_list_free(list, __FILE__, __LINE__)
 
 #else
-#define ALLOC_DEF(func, ...) func(__VA_ARGS__)
 #endif
 
 cbstr_t ALLOC_DEF(cbstr_from_cstr, char* cstr, size_t len);

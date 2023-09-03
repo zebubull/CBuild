@@ -8,6 +8,7 @@
 
 #include "dir.h"
 #include "cbmem.h"
+#include "cbtimetable.h"
 
 #define FLEN(FILE, X) fseek(FILE, 0, SEEK_END);\
 X = ftell(FILE);\
@@ -15,9 +16,12 @@ fseek(FILE, 0, SEEK_SET)
 
 #define COMMAND_SIZE 1024 * 4
 
+static time_table_t timetable;
+
 typedef struct cbuild_conf {
     cbstr_t source;
     cbstr_t project;
+    cbstr_t rule;
     cbstr_list_t defines;
     cbstr_list_t flags;
     bool cache;
@@ -25,7 +29,7 @@ typedef struct cbuild_conf {
 
 size_t next(const char *string, size_t *start, size_t len) {
     size_t i = *start;
-    while (isspace(string[i])) {
+    while (i < len && isspace(string[i])) {
         ++i;
     }
 
@@ -124,22 +128,19 @@ cbuild_conf_t load_conf(char *buffer, size_t len, int argc, char **argv) {
         exit(1);
     }
 
-    cbstr_free(&rule);
+    config.rule = rule;
+
     return config;
 }
 
 void free_conf(cbuild_conf_t *conf) {
     cbstr_free(&conf->source);
     cbstr_free(&conf->project);
+    cbstr_free(&conf->rule);
     cbstr_list_free(&conf->defines);
     cbstr_list_free(&conf->flags);
 }
 
-
-void obj_sub(char *file, size_t len) {
-    size_t end = strnlen(file, len);
-    file[end-1] = 'o';
-}
 
 cbstr_t build_object_command(cbuild_conf_t *conf, cbstr_t *buffer, cbstr_t *file, cbstr_t *parent) {
     size_t i;
@@ -164,6 +165,8 @@ cbstr_t build_object_command(cbuild_conf_t *conf, cbstr_t *buffer, cbstr_t *file
     cbstr_concat(buffer, file);
 
     object = cbstr_from_cstr("obj\\", sizeof("obj\\"));
+    cbstr_concat(&object, &conf->rule);
+    cbstr_concat_cstr(&object, "\\", sizeof("\\"));
     cbstr_concat_slice(&object, parent, conf->source.len);
 
     CreateDirectoryA(object.data, NULL);
@@ -181,16 +184,31 @@ cbstr_t build_object_command(cbuild_conf_t *conf, cbstr_t *buffer, cbstr_t *file
     return object;
 }
 
+bool needs_compile(cbstr_t *object, dir_entry_t *file, cbstr_t *parent, time_entry_t **entry) {
+    *entry = time_table_search(&timetable, &file->filename, parent);
+
+    if (!(*entry)) {
+        return true;
+    }
+
+    if (file->write_time > (*entry)->write_time) {
+        return true;
+    }
+
+    DWORD attr = GetFileAttributesA(object->data);
+    return attr == INVALID_FILE_ATTRIBUTES;
+}
+
 void compile(cbuild_conf_t *conf, dir_t *files) {
     #define FREE_ALL() cbstr_list_free(&objects);\
     cbstr_free(&command);\
     cbstr_free(&temp)
 
     cbstr_list_t objects = cbstr_list_init(files->entries.len >> 1);
-    size_t pos;
     size_t i;
     int ret_val;
     cbstr_t temp;
+    bool built = false;
 
     cbstr_t command = cbstr_with_cap(COMMAND_SIZE);
 
@@ -199,6 +217,7 @@ void compile(cbuild_conf_t *conf, dir_t *files) {
     for (i = 0; i < files->entries.len; ++i) {
         cbstr_t *parent;
         cbstr_t object;
+        time_entry_t *pentry;
         dir_entry_t *file = entry_list_get(&files->entries, i);
         cbstr_t *name = &file->filename;
 
@@ -209,20 +228,51 @@ void compile(cbuild_conf_t *conf, dir_t *files) {
         object = build_object_command(conf, &command, name, parent);
         cbstr_list_push(&objects, object);
 
+        if (!needs_compile(&object, file, parent, &pentry)) {
+            printf("[INFO] %s\\%s up to date\n", parent->data, name->data);
+            continue;
+        }
+
+        built = true;
+
         printf("[CMD] %s\n", command.data);
         ret_val = system(command.data);
 
-        if (ret_val != 0) {
-            printf("[ERROR] '%s' failed with code %d!\n", command, ret_val);
+        if (ret_val == 0) {
+            if (pentry == NULL) {
+                time_entry_t entry;
+                entry.file = cbstr_copy(name);
+                entry.parent = cbstr_copy(parent);
+                entry.obj = cbstr_copy(&object);
+                entry.write_time = file->write_time;
+
+                time_table_push(&timetable, entry);
+            } else {
+                cbstr_free(&pentry->obj);
+                pentry->obj = cbstr_copy(&object);
+                pentry->write_time = file->write_time;
+            }
+        } else {
+            printf("[ERROR] '%s' failed with code %d!\n", command.data, ret_val);
             FREE_ALL();
             return;
         }
     }
 
+
+    cbstr_concat_cstr(&conf->project, "-", sizeof("-"));
+    cbstr_concat(&conf->project, &conf->rule);
     cbstr_concat_cstr(&conf->project, ".exe", sizeof(".exe"));
     temp = cbstr_from_cstr(".cbuild\\", sizeof(".cbuild\\"));
     cbstr_concat(&temp, &conf->project);
     cbstr_concat_cstr(&temp, ".tmp", sizeof(".tmp"));
+
+    if (!built) {
+        printf("[INFO] %s up to date\n", conf->project.data);
+        FREE_ALL();
+        return;
+    }
+
 
     if (conf->cache) {
         printf("[INFO] Relocating .exe to cache...\n");
@@ -243,7 +293,7 @@ void compile(cbuild_conf_t *conf, dir_t *files) {
     ret_val = system(command.data);
 
     if (ret_val != 0) {
-        printf("[ERROR] '%s' failed with code %d!\n", command, ret_val);
+        printf("[ERROR] '%s' failed with code %d!\n", command.data, ret_val);
         MoveFileA(temp.data, conf->project.data);
     }
 
@@ -253,9 +303,11 @@ void compile(cbuild_conf_t *conf, dir_t *files) {
 
 int main(int argc, char **argv) {
     FILE *cbuild;
+    FILE *tt;
     size_t length;
     char *config_data;
     cbuild_conf_t config;
+    cbstr_t tt_file;
 
     DEBUG_INIT();
 
@@ -275,10 +327,31 @@ int main(int argc, char **argv) {
 
     dir_t files = walk_dir(config.source);
 
+    timetable = time_table_init(4);
+
+    tt_file = cbstr_from_cstr(".cbuild\\", sizeof(".cbuild\\"));
+    cbstr_concat(&tt_file, &config.rule);
+    cbstr_concat_cstr(&tt_file, "-timetable", sizeof("-timetable"));
+    tt = fopen(tt_file.data, "r");
+
+    if (tt) {
+        time_table_load(&timetable, tt);
+        if (tt) fclose(tt);
+    }
+
     compile(&config, &files);
+
+    tt = fopen(tt_file.data, "w");
+    cbstr_free(&tt_file);
+
+    if (tt) {
+        time_table_save(&timetable, tt);
+        fclose(tt);
+    }
 
     free_conf(&config);
     free_dir(&files);
+    time_table_free(&timetable);
     
     DEBUG_DEINIT();
     return 0;

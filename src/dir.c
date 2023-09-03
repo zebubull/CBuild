@@ -49,6 +49,7 @@ void walk_dir_recursive(dir_t *dir, cbstr_t path) {
             dir_entry_t entry;
             entry.parent = name_index;
             entry.filename = cbstr_from_cstr(find.cFileName, strnlen(find.cFileName, 260)+1);
+            entry.write_time = (int64_t)(find.ftLastWriteTime.dwLowDateTime) | ((int64_t)(find.ftLastWriteTime.dwHighDateTime) << 32);
             entry_list_push(&dir->entries, entry);
         }
     } while (FindNextFileA(walk_handle, &find));

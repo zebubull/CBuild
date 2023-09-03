@@ -66,12 +66,12 @@ void debug_deinit() {
     for (i = 0; i < alloc_list.len; ++i) {
         alloc_t *alloc = &alloc_list.allocs[i];
         if (!alloc->freed) {
-            printf("[LEAK] %p leaked, alloc from %s:%d!\n", alloc->ptr, alloc->file, alloc->line);
+            printf("[LEAK] %p leaked, alloc from %s:%I64d!\n", alloc->ptr, alloc->file, alloc->line);
         }
     }
 
-    printf("[DEBUG] %d total allocs\n", total_allocs);
-    printf("[DEBUG] %d expensive reallocs\n", expensive_reallocs);
+    printf("[DEBUG] %I64d total allocs\n", total_allocs);
+    printf("[DEBUG] %I64d expensive reallocs\n", expensive_reallocs);
 }
 
 void *debug_alloc(size_t size, const char* file, size_t line) {
@@ -104,7 +104,7 @@ void debug_free(void *ptr, const char *file, size_t line) {
     alloc = alloc_list_search(&alloc_list, ptr);
     
     if (alloc->freed) {
-        printf("[DFREE] %p double freed at %s:%d, alloc from %s:%d!\n", ptr, file, line, alloc->file, alloc->line);
+        printf("[DFREE] %p double freed at %s:%I64d, alloc from %s:%I64d!\n", ptr, file, line, alloc->file, alloc->line);
     } else {
         CBFREE(alloc->ptr);
         alloc->freed = true;
