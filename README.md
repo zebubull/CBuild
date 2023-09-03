@@ -47,7 +47,7 @@ Sets the given preprocessor macro to be defined.
 
 ### `flag` (Optional; Options: Any literal with no whitespace)
 Sets the given compiler flag. A `-` or `--` must be included, as this simply passes 
-the given literal as a argument to the compiler with no processing.
+the given literal as an argument to the compiler with no processing.
 
 ### Example Config
 The [cbuild](cbuild) file in the project root.
