@@ -8,7 +8,8 @@ to be anything amazing.
 ## Features (listed in order of priority)
 - [x] Build multi-file c projects
 - [x] Simple configuration language
-- [ ] Incremental compilation
+- [x] Incremental compilation
+- [x] Compilation rules
 - [ ] Library support
 - [ ] Linux support
 
