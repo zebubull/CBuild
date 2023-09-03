@@ -113,14 +113,33 @@ void debug_free(void *ptr, const char *file, size_t line) {
 
 void *debug_realloc(void *ptr, size_t size) {
     void *new_ptr;
+    alloc_t *in_list;
+    alloc_t alloc;
 
     new_ptr = CBREALLOC(ptr, size);
 
     if (new_ptr != ptr) {
+        alloc_t *old_alloc;
         ++expensive_reallocs;
-        alloc_t *alloc = alloc_list_search(&alloc_list, ptr);
-        alloc->ptr = new_ptr;
+        old_alloc = alloc_list_search(&alloc_list, ptr);
+        old_alloc->freed = true;
+
+        alloc.ptr = new_ptr;
+        alloc.file = old_alloc->file;
+        alloc.line = old_alloc->line;
+        alloc.freed = false;
+
+        in_list = alloc_list_search(&alloc_list, new_ptr);
+
+        if (!in_list) {
+            alloc_list_push(&alloc_list, alloc);
+        } else {
+            in_list->freed = false;
+            in_list->line = alloc.line;
+            in_list->file = alloc.file;
+        }
     }
+
 
     return new_ptr;
 }
