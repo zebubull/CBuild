@@ -150,36 +150,31 @@ cbstr_t build_object_command(cbuild_conf_t *conf, cbstr_t *buffer, cbstr_t *file
     cbstr_concat_cstr(buffer, "gcc -c ", sizeof("gcc -c "));
 
     for (i = 0; i < conf->defines.len; ++i) {
-        cbstr_concat_cstr(buffer, "-D", sizeof("-D"));
-        cbstr_concat(buffer, cbstr_list_get(&conf->defines, i));
-        cbstr_concat_cstr(buffer, " ", sizeof(" "));
+        cbstr_concat_format(buffer, CB_CSTR("-D%s "), cbstr_list_get(&conf->defines, i));
     }
 
     for (i = 0; i < conf->flags.len; ++i) {
-        cbstr_concat(buffer, cbstr_list_get(&conf->flags, i));
-        cbstr_concat_cstr(buffer, " ", sizeof(" "));
+        cbstr_concat_format(buffer, CB_CSTR("%s "), cbstr_list_get(&conf->flags, i));
     }
 
-    cbstr_concat(buffer, parent);
-    cbstr_concat_cstr(buffer, "\\", sizeof("\\"));
-    cbstr_concat(buffer, file);
+    cbstr_concat_format(buffer, CB_CSTR("%s\\%s "), parent, file);
 
-    object = cbstr_from_cstr("obj\\", sizeof("obj\\"));
-    cbstr_concat(&object, &conf->rule);
-    cbstr_concat_cstr(&object, "\\", sizeof("\\"));
+    object = cbstr_with_cap(conf->source.len);
+    cbstr_concat_format(&object, CB_CSTR("obj\\%s\\"), &conf->rule);
     cbstr_concat_slice(&object, parent, conf->source.len);
 
     CreateDirectoryA(object.data, NULL);
 
+    // Avoid double slash in obj path since source directory is cut out
     if (!cbstr_cmp(parent, &conf->source)) {
         cbstr_concat_cstr(&object, "\\", sizeof("\\"));
     }
 
+    // Bad hack, fix later
     cbstr_concat(&object, file);
     object.data[object.len-2] = 'o';
 
-    cbstr_concat_cstr(buffer, " -o ", sizeof(" -o "));
-    cbstr_concat(buffer, &object);
+    cbstr_concat_format(buffer, CB_CSTR("-o %s"), &object);
 
     return object;
 }
@@ -226,13 +221,16 @@ void compile(cbuild_conf_t *conf, dir_t *files) {
         parent = cbstr_list_get(&files->dir_names, file->parent);
 
         object = build_object_command(conf, &command, name, parent);
-        cbstr_list_push(&objects, object);
 
         if (!needs_compile(&object, file, parent, &pentry)) {
             printf("[INFO] %s\\%s up to date\n", parent->data, name->data);
+            // Use cached obj file
+            cbstr_list_push(&objects, cbstr_copy(&pentry->obj));
+            cbstr_free(&object);
             continue;
         }
 
+        cbstr_list_push(&objects, object);
         built = true;
 
         printf("[CMD] %s\n", command.data);
@@ -260,19 +258,15 @@ void compile(cbuild_conf_t *conf, dir_t *files) {
     }
 
 
-    cbstr_concat_cstr(&conf->project, "-", sizeof("-"));
-    cbstr_concat(&conf->project, &conf->rule);
-    cbstr_concat_cstr(&conf->project, ".exe", sizeof(".exe"));
-    temp = cbstr_from_cstr(".cbuild\\", sizeof(".cbuild\\"));
-    cbstr_concat(&temp, &conf->project);
-    cbstr_concat_cstr(&temp, ".tmp", sizeof(".tmp"));
+    cbstr_concat_format(&conf->project, CB_CSTR("-%s.exe"), &conf->rule);
+    temp = cbstr_with_cap(conf->rule.len + 16);
+    cbstr_concat_format(&temp, CB_CSTR(".cbuild\\%s.tmp"), &conf->project);
 
     if (!built) {
         printf("[INFO] %s up to date\n", conf->project.data);
         FREE_ALL();
         return;
     }
-
 
     if (conf->cache) {
         printf("[INFO] Relocating .exe to cache...\n");
@@ -281,12 +275,10 @@ void compile(cbuild_conf_t *conf, dir_t *files) {
     }
 
     cbstr_clear(&command);
-    cbstr_concat_cstr(&command, "gcc -g -o ", sizeof("gcc -g -o "));
-    cbstr_concat(&command, &conf->project);
+    cbstr_concat_format(&command, CB_CSTR("gcc -g -o %s "), &conf->project);
 
     for (i = 0; i < objects.len; ++i) {
-        cbstr_concat_cstr(&command, " ", sizeof(" "));
-        cbstr_concat(&command, cbstr_list_get(&objects, i));
+        cbstr_concat_format(&command, CB_CSTR("%s "), cbstr_list_get(&objects, i));
     }
 
     printf("[CMD] %s\n", command.data);
@@ -329,9 +321,8 @@ int main(int argc, char **argv) {
 
     timetable = time_table_init(4);
 
-    tt_file = cbstr_from_cstr(".cbuild\\", sizeof(".cbuild\\"));
-    cbstr_concat(&tt_file, &config.rule);
-    cbstr_concat_cstr(&tt_file, "-timetable", sizeof("-timetable"));
+    tt_file = cbstr_with_cap(16);
+    cbstr_concat_format(&tt_file, CB_CSTR(".cbuild\\%s-timetable"), &config.rule);
     tt = fopen(tt_file.data, "r");
 
     if (tt) {

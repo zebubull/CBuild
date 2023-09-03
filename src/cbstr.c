@@ -72,6 +72,57 @@ void cbstr_concat_slice(cbstr_t *a, cbstr_t *b, size_t offset) {
     b->len += offset;
 }
 
+void cbstr_concat_format(cbstr_t *a, const char *format, size_t len, ...) {
+    size_t start;
+    size_t i;
+    size_t in_format;
+    va_list args;
+
+    va_start(args, len);
+    start = 0;
+    in_format = false;
+    for (i = 0; i < len; ++i) {
+        switch (format[i]) {
+            case '%':
+            {
+                if (in_format) {
+                    in_format = 0;
+                    cbstr_concat_cstr(a, "%", sizeof("%"));
+                    start = i+1;
+                } else {
+                    in_format = 1;
+                    cbstr_concat_cstr(a, format+start, i-start);
+                }
+            }
+            break;
+            case 's':
+            {
+                if (in_format) {
+                    cbstr_t* b;
+                    in_format = 0;
+                    start = i+1;
+                    b = va_arg(args, cbstr_t*);
+                    cbstr_concat(a, b);
+                }
+            }
+            break;
+            default:
+            break;
+        }
+
+        if (in_format == 2) {
+            in_format = 0;
+        }
+
+        if (in_format == 1) {
+            ++in_format;
+        }
+    }
+
+    cbstr_concat_cstr(a, format+start, i-start);
+    va_end(args);
+}
+
 void cbstr_concat_cstr(cbstr_t *a, const char *b, size_t len) {
     // Null terminator of first string is discarded
     size_t target;
