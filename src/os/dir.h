@@ -5,7 +5,7 @@
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
-#include "cbstr.h"
+#include "../util/cbstr.h"
 
 #ifndef _WIN32
 #error "The dir module only supports windows"

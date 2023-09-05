@@ -10,9 +10,10 @@
 #include <windows.h>
 #include <stdbool.h>
 
-#include "dir.h"
-#include "cbmem.h"
-#include "cbtimetable.h"
+#include "../os/dir.h"
+#include "../mem/cbmem.h"
+#include "../util/cbtimetable.h"
+#include "../util/cbstr.h"
 
 #define FLEN(FILE, X) fseek(FILE, 0, SEEK_END);\
 X = ftell(FILE);\

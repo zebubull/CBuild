@@ -7,7 +7,8 @@
 #include <windows.h>
 #include <stdbool.h>
 
-#include "cbmem.h"
+#include "../mem/cbmem.h"
+#include "../util/cbstr.h"
 
 dir_t dir_init() {
     dir_t dir;

@@ -4,7 +4,7 @@
 /// Copyright (c) zebubull 2023
 #pragma once
 
-#include "cbmem.h"
+#include "../mem/cbmem.h"
 #include <stdint.h>
 #include <stdbool.h>
 

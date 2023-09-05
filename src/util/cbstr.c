@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include "cbmem.h"
+#include "../mem/cbmem.h"
 
 
 cbstr_t ALLOC_DEF(cbstr_from_cstr, char *cstr, size_t len) {

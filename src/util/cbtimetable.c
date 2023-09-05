@@ -5,7 +5,7 @@
 #include "cbtimetable.h"
 
 #include "cbstr.h"
-#include "cbmem.h"
+#include "../mem/cbmem.h"
 #include <stdio.h>
 
 void ALLOC_DEF(time_entry_free, time_entry_t *entry) {

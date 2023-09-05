@@ -7,8 +7,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "cbmem.h"
-#include "cbstr.h"
+#include "../mem/cbmem.h"
+#include "../util/cbstr.h"
 
 typedef struct time_entry {
     cbstr_t file;
