@@ -37,7 +37,7 @@ typedef struct cbstr_list {
 
 #define CB_CSTR(s) s, sizeof(s)
 
-cbstr_t ALLOC_DEF(cbstr_from_cstr, char* cstr, size_t len);
+cbstr_t ALLOC_DEF(cbstr_from_cstr, const char* cstr, size_t len);
 cbstr_t ALLOC_DEF(cbstr_with_cap, size_t cap);
 cbstr_t ALLOC_DEF(cbstr_copy, cbstr_t *str);
 void ALLOC_DEF(cbstr_free, cbstr_t *str);

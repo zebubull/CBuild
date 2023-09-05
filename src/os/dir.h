@@ -29,7 +29,7 @@ typedef struct dir {
 } dir_t;
 
 dir_t walk_dir(cbstr_t path);
-void free_dir(dir_t *dir);
+void dir_free(dir_t *dir);
 
 entry_list_t entry_list_init(size_t cap);
 void entry_list_push(entry_list_t *list, dir_entry_t entry);

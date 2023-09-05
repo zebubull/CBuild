@@ -1,19 +1,14 @@
-/// Author - zebubull
-/// main.c
-/// This file contains the cbuild core functionality.
-/// Copyright (c) zebubull 2023
 #include <stdio.h>
-#include <malloc.h>
 #include <stdint.h>
-#include <string.h>
-#include <stdlib.h>
 #include <windows.h>
 #include <stdbool.h>
 
+#include "cbcore.h"
 #include "../os/dir.h"
 #include "../mem/cbmem.h"
 #include "../util/cbtimetable.h"
 #include "../util/cbstr.h"
+#include "cbconf.h"
 
 #define FLEN(FILE, X) fseek(FILE, 0, SEEK_END);\
 X = ftell(FILE);\
@@ -23,131 +18,7 @@ fseek(FILE, 0, SEEK_SET)
 
 static time_table_t timetable;
 
-typedef struct cbuild_conf {
-    cbstr_t source;
-    cbstr_t project;
-    cbstr_t rule;
-    cbstr_list_t defines;
-    cbstr_list_t flags;
-    bool cache;
-} cbuild_conf_t;
-
-size_t next(const char *string, size_t *start, size_t len) {
-    size_t i = *start;
-    while (i < len && isspace(string[i])) {
-        ++i;
-    }
-
-    *start = i;
-
-    for (; i < len; ++i) {
-        if (string[i] == ' ' || string[i] == 0x0A) {
-            --i;
-            break;
-        }
-    }
-
-    return i - *start;
-}
-
-cbuild_conf_t load_conf(char *buffer, size_t len, int argc, char **argv) {
-    cbstr_t rule;
-    cbuild_conf_t config;
-    config.cache = false;
-    config.defines = cbstr_list_init(4);
-    config.flags = cbstr_list_init(4);
-    bool has_source = false;
-    bool has_proj = false;
-    bool ignore_rule = false;
-
-    if (argc > 1) {
-        rule = cbstr_from_cstr(argv[1], strnlen(argv[1], 64));
-    } else {
-        rule = cbstr_from_cstr("default", sizeof("default"));
-    }
-
-    size_t pos = 0;
-    size_t size = 0;
-
-    while (1) {
-        size = next(buffer, &pos, len);
-
-        if (size == 0) break;
-
-        if (strncmp(&buffer[pos], "rule", size) == 0) {
-            pos += size + 1;
-            size = next(buffer, &pos, len);
-            if (strncmp(rule.data, "default", rule.len) == 0) {
-                cbstr_clear(&rule);
-                cbstr_concat_cstr(&rule, &buffer[pos], size);
-            }
-            ignore_rule = strncmp(&buffer[pos], rule.data, size) != 0;
-        }
-
-        if (strncmp(&buffer[pos], "endrule", size) == 0) {
-            ignore_rule = false;
-        }
-
-        if (ignore_rule) {
-            pos += size + 1;
-            continue;
-        }
-
-        if (strncmp(&buffer[pos], "source", size) == 0) {
-            if (!has_source) {
-                pos += size + 1;
-                size = next(buffer, &pos, len);
-                config.source = cbstr_from_cstr(&buffer[pos], size);
-                has_source = true;
-            } else {
-                printf("[ERROR] Multiple definition of source\n");
-            }
-        } else if (strncmp(&buffer[pos], "project", size) == 0) {
-            if (!has_proj) {
-                pos += size + 1;
-                size = next(buffer, &pos, len);
-                config.project = cbstr_from_cstr(&buffer[pos], size);
-                has_proj = true;
-            } else {
-                printf("[ERROR] Multiple definition of project\n");
-            }
-        } else if (strncmp(&buffer[pos], "cache", size) == 0) {
-            pos += size + 1;
-            size = next(buffer, &pos, len);
-            config.cache = strncmp(&buffer[pos], "on", size) == 0;
-        } else if (strncmp(&buffer[pos], "define", size) == 0) {
-            pos += size + 1;
-            size = next(buffer, &pos, len);
-            cbstr_list_push(&config.defines, cbstr_from_cstr(&buffer[pos], size));
-        } else if (strncmp(&buffer[pos], "flag", size) == 0) {
-            pos += size + 1;
-            size = next(buffer, &pos, len);
-            cbstr_list_push(&config.flags, cbstr_from_cstr(&buffer[pos], size));
-        }
-
-        pos += size + 1;
-    }
-
-    if (!has_proj || !has_source) {
-        printf("[ERROR] not enough information specified in cbuild...\n");
-        exit(1);
-    }
-
-    config.rule = rule;
-
-    return config;
-}
-
-void free_conf(cbuild_conf_t *conf) {
-    cbstr_free(&conf->source);
-    cbstr_free(&conf->project);
-    cbstr_free(&conf->rule);
-    cbstr_list_free(&conf->defines);
-    cbstr_list_free(&conf->flags);
-}
-
-
-cbstr_t build_object_command(cbuild_conf_t *conf, cbstr_t *buffer, cbstr_t *file, cbstr_t *parent) {
+cbstr_t build_object_command(cbconf_t *conf, cbstr_t *buffer, cbstr_t *file, cbstr_t *parent) {
     size_t i;
     cbstr_t object;
 
@@ -199,7 +70,7 @@ bool needs_compile(cbstr_t *object, dir_entry_t *file, cbstr_t *parent, time_ent
     return attr == INVALID_FILE_ATTRIBUTES;
 }
 
-void compile(cbuild_conf_t *conf, dir_t *files) {
+void compile(cbconf_t *conf, dir_t *files) {
     #define FREE_ALL() cbstr_list_free(&objects);\
     cbstr_free(&command);\
     cbstr_free(&temp)
@@ -298,57 +169,86 @@ void compile(cbuild_conf_t *conf, dir_t *files) {
     #undef FREE_ALL
 }
 
-int main(int argc, char **argv) {
-    FILE *cbuild;
-    FILE *tt;
-    size_t length;
+cbconf_t load_config(int argc, char **argv) {
+    FILE *config_file;
+    size_t data_size;
     char *config_data;
-    cbuild_conf_t config;
-    cbstr_t tt_file;
+    cbconf_t config;
 
-    DEBUG_INIT();
-
-    cbuild = fopen("cbuild", "rb");
-    if (!cbuild) {
-        printf("[ERROR] Could not load cbuild config file...\n");
+    config_file = fopen("cbuild", "rb");
+    if (!config_file) {
+        printf("[ERROR] Failed to open cbuild config.\n");
         exit(1);
     }
 
-    FLEN(cbuild, length);
-    config_data = (char*)MALLOC(length);
-    fread(config_data, length, 1, cbuild);
-    fclose(cbuild);
+    fseek(config_file, 0, SEEK_END);
+    data_size = ftell(config_file);
+    fseek(config_file, 0, SEEK_SET);
 
-    config = load_conf(config_data, length, argc, argv);
-    FREE(config_data);
+    config_data = MALLOC(data_size);
+    fread(config_data, 1, data_size, config_file);
+    fclose(config_file);
 
-    dir_t files = walk_dir(config.source);
+    config = cbconf_init(config_data, data_size, argc, argv);
+
+    free(config_data);
+
+    return config;
+}
+
+void load_timetable(cbstr_t path) {
+    FILE *timetable_file;
 
     timetable = time_table_init(4);
 
-    tt_file = cbstr_with_cap(16);
-    cbstr_concat_format(&tt_file, CB_CSTR(".cbuild\\%s-timetable"), &config.rule);
-    tt = fopen(tt_file.data, "r");
+    timetable_file = fopen(path.data, "r");
 
-    if (tt) {
-        time_table_load(&timetable, tt);
-        if (tt) fclose(tt);
+    if (timetable_file) {
+        time_table_load(&timetable, timetable_file);
+        fclose(timetable_file);
+    } else {
+        printf("[WARNING] Could not open timetable file.\n");
     }
+}
+
+void save_timetable(cbstr_t path) {
+    FILE *timetable_file;
+
+    timetable_file = fopen(path.data, "w");
+
+    if (timetable_file) {
+        time_table_save(&timetable, timetable_file);
+        fclose(timetable_file);
+    } else {
+        printf("[WARNING] Could not open timetable file.\n");
+    }
+}
+
+int cb_main(int argc, char **argv) {
+    cbconf_t config;
+    dir_t files;
+    cbstr_t timetable_path;
+
+    DEBUG_INIT();
+
+    config = load_config(argc, argv);
+    files = walk_dir(config.source);
+
+    timetable_path = cbstr_with_cap(19 + config.rule.len);
+    cbstr_concat_format(&timetable_path, CB_CSTR(".cbuild\\%s-timetable"), &config.rule);
+
+    load_timetable(timetable_path);
 
     compile(&config, &files);
 
-    tt = fopen(tt_file.data, "w");
-    cbstr_free(&tt_file);
+    save_timetable(timetable_path);
 
-    if (tt) {
-        time_table_save(&timetable, tt);
-        fclose(tt);
-    }
-
-    free_conf(&config);
-    free_dir(&files);
     time_table_free(&timetable);
+    cbstr_free(&timetable_path);
+    dir_free(&files);
+    cbconf_free(&config);
     
     DEBUG_DEINIT();
+
     return 0;
 }

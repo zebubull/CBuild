@@ -17,7 +17,7 @@ dir_t dir_init() {
     return dir;
 }
 
-void free_dir(dir_t *dir) {
+void dir_free(dir_t *dir) {
     cbstr_list_free(&dir->dir_names);
     entry_list_free(&dir->entries);
 }
