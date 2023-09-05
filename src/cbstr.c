@@ -1,3 +1,7 @@
+/// Author - zebubull
+/// cbstr.c
+/// cbstr.h implementation.
+/// Copyright (c) zebubull 2023
 #include "cbstr.h"
 
 #include <string.h>

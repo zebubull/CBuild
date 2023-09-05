@@ -1,3 +1,7 @@
+/// Author - zebubull
+/// cbtimetable.h
+/// A header for keeping track of file write times.
+/// Copyright (c) zebubull 2023
 #pragma once
 
 #include <stdint.h>

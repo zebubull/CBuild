@@ -1,3 +1,7 @@
+/// Author - zebubull
+/// dir.c
+/// dir.h implementation
+/// Copyright (c) zebubull 2023
 #include "dir.h"
 
 #include <windows.h>
@@ -16,6 +20,8 @@ void free_dir(dir_t *dir) {
     cbstr_list_free(&dir->dir_names);
     entry_list_free(&dir->entries);
 }
+
+// TODO: make all of this code platform agnostic
 
 void walk_dir_recursive(dir_t *dir, cbstr_t path) {
     cbstr_t root;

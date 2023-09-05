@@ -1,3 +1,7 @@
+/// Author - zebubull
+/// cbmem.h
+/// A header to make working with memory a bit easier when debugging.
+/// Copyright (c) zebubull 2023
 #pragma once
 
 #include <malloc.h>

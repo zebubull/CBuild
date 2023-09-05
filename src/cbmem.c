@@ -1,3 +1,7 @@
+/// Author - zebubull
+/// cbmem.c
+/// cbmem.h implementation.
+/// Copyright (c) zebubull 2023
 #include "cbmem.h"
 #include <stdint.h>
 #include <stdbool.h>

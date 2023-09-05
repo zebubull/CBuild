@@ -1,3 +1,7 @@
+/// Author - zebubull
+/// cbstr.h
+/// A header for memory-safe dynamic string operations.
+/// Copyright (c) zebubull 2023
 #pragma once
 
 #include "cbmem.h"

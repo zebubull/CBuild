@@ -1,3 +1,7 @@
+/// Author - zebubull
+/// cbtimetable.c
+/// cbtimetable.h implementation.
+/// Copyright (c) zebubull 2023
 #include "cbtimetable.h"
 
 #include "cbstr.h"

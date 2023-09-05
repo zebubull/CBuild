@@ -1,3 +1,7 @@
+/// Author - zebubull
+/// dir.h
+/// A header for working with directories.
+/// Copyright (c) zebubull 2023
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
@@ -31,3 +35,5 @@ entry_list_t entry_list_init(size_t cap);
 void entry_list_push(entry_list_t *list, dir_entry_t entry);
 dir_entry_t* entry_list_get(entry_list_t *list, size_t item);
 void entry_list_free(entry_list_t *list);
+
+// TODO: add api for creating directories and checking if files exist

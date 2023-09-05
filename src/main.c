@@ -1,3 +1,7 @@
+/// Author - zebubull
+/// main.c
+/// This file contains the cbuild core functionality.
+/// Copyright (c) zebubull 2023
 #include <stdio.h>
 #include <malloc.h>
 #include <stdint.h>
