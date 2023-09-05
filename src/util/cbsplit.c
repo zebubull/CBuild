@@ -34,7 +34,7 @@ bool cbsplit_next(cbsplit_t *view) {
     return true;
 }
 
-cbsplit_t cbsplit_init(const char *str, size_t len) {
+cbsplit_t cbsplit_init(char *str, size_t len) {
     cbsplit_t view;
     view.data = str;
     view.len = 0;

@@ -8,12 +8,12 @@
 #include <stdbool.h>
 
 typedef struct cbsplit {
-    const char *data;
+    char *data;
     size_t len;
     size_t remaining;
 } cbsplit_t;
 
-cbsplit_t cbsplit_init(const char *str, size_t len);
+cbsplit_t cbsplit_init(char *str, size_t len);
 
 // This function will advace the data pointer forward to the next word and 
 // update the length of the current word.

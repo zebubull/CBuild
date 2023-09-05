@@ -28,7 +28,6 @@ cbstr_t ALLOC_DEF(cbstr_from_cstr, const char *cstr, size_t len) {
     str.len = len;
     str.capacity = len;
 
-
     return str;
 }
 
@@ -49,6 +48,7 @@ cbstr_t ALLOC_DEF(cbstr_with_cap, size_t cap) {
     str.capacity = cap;
     str.data = FMALLOC(cap);
     cbstr_clear(&str);
+
     return str;
 }
 

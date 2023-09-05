@@ -4,11 +4,12 @@
 #include <stdbool.h>
 
 #include "cbcore.h"
+#include "cbconf.h"
 #include "../os/dir.h"
 #include "../mem/cbmem.h"
 #include "../util/cbtimetable.h"
 #include "../util/cbstr.h"
-#include "cbconf.h"
+#include "../util/cblog.h"
 
 #define FLEN(FILE, X) fseek(FILE, 0, SEEK_END);\
 X = ftell(FILE);\
@@ -17,43 +18,6 @@ fseek(FILE, 0, SEEK_SET)
 #define COMMAND_SIZE 1024 * 4
 
 static time_table_t timetable;
-
-cbstr_t build_object_command(cbconf_t *conf, cbstr_t *buffer, cbstr_t *file, cbstr_t *parent) {
-    size_t i;
-    cbstr_t object;
-
-    cbstr_clear(buffer);
-    cbstr_concat_cstr(buffer, "gcc -c ", sizeof("gcc -c "));
-
-    for (i = 0; i < conf->defines.len; ++i) {
-        cbstr_concat_format(buffer, CB_CSTR("-D%s "), cbstr_list_get(&conf->defines, i));
-    }
-
-    for (i = 0; i < conf->flags.len; ++i) {
-        cbstr_concat_format(buffer, CB_CSTR("%s "), cbstr_list_get(&conf->flags, i));
-    }
-
-    cbstr_concat_format(buffer, CB_CSTR("%s\\%s "), parent, file);
-
-    object = cbstr_with_cap(conf->source.len);
-    cbstr_concat_format(&object, CB_CSTR("obj\\%s\\"), &conf->rule);
-    cbstr_concat_slice(&object, parent, conf->source.len);
-
-    CreateDirectoryA(object.data, NULL);
-
-    // Avoid double slash in obj path since source directory is cut out
-    if (!cbstr_cmp(parent, &conf->source)) {
-        cbstr_concat_cstr(&object, "\\", sizeof("\\"));
-    }
-
-    // Bad hack, fix later
-    cbstr_concat(&object, file);
-    object.data[object.len-2] = 'o';
-
-    cbstr_concat_format(buffer, CB_CSTR("-o %s"), &object);
-
-    return object;
-}
 
 bool needs_compile(cbstr_t *object, dir_entry_t *file, cbstr_t *parent, time_entry_t **entry) {
     *entry = time_table_search(&timetable, &file->filename, parent);
@@ -70,25 +34,44 @@ bool needs_compile(cbstr_t *object, dir_entry_t *file, cbstr_t *parent, time_ent
     return attr == INVALID_FILE_ATTRIBUTES;
 }
 
+void set_compiler_stub(cbconf_t *conf, cbstr_t *str) {
+    size_t i;
+
+    cbstr_concat_cstr(str, CB_CSTR("gcc -c "));
+
+    for (i = 0; i < conf->defines.len; ++i) {
+        cbstr_concat_format(str, CB_CSTR("-D%s "), cbstr_list_get(&conf->defines, i));
+    }
+
+    for (i = 0; i < conf->flags.len; ++i) {
+        cbstr_concat_format(str, CB_CSTR("%s "), cbstr_list_get(&conf->flags, i));
+    }
+}
+
 void compile(cbconf_t *conf, dir_t *files) {
     #define FREE_ALL() cbstr_list_free(&objects);\
     cbstr_free(&command);\
     cbstr_free(&temp)
 
-    cbstr_list_t objects = cbstr_list_init(files->entries.len >> 1);
     size_t i;
     int ret_val;
     cbstr_t temp;
+    size_t stub_len;
+    cbstr_list_t objects = cbstr_list_init(files->entries.len >> 1);
     bool built = false;
 
-    cbstr_t command = cbstr_with_cap(COMMAND_SIZE);
-
     CreateDirectoryA(".cbuild", NULL);
+
+    cbstr_t command = cbstr_with_cap(COMMAND_SIZE);
+    set_compiler_stub(conf, &command);
+    stub_len = command.len;
 
     for (i = 0; i < files->entries.len; ++i) {
         cbstr_t *parent;
         cbstr_t object;
+        cbstr_t path;
         time_entry_t *pentry;
+
         dir_entry_t *file = entry_list_get(&files->entries, i);
         cbstr_t *name = &file->filename;
 
@@ -96,16 +79,28 @@ void compile(cbconf_t *conf, dir_t *files) {
 
         parent = cbstr_list_get(&files->dir_names, file->parent);
 
-        object = build_object_command(conf, &command, name, parent);
+        path = cbstr_copy(parent);
+        cbstr_concat_format(&path, CB_CSTR("\\%s"), name);
+
+        object = cbstr_with_cap(32);
+        cbstr_concat_format(&object, CB_CSTR("obj\\%s\\"), conf->rule);
+        cbstr_concat_slice(&object, parent, conf->source.len);
+        cbstr_concat_format(&object, CB_CSTR("\\%s"), name);
+
+        object.data[object.len-2] = 'o';
+
+        command.len = stub_len;
+        cbstr_concat_format(&command, CB_CSTR("%s -o %s"), &path, &object);
 
         if (!needs_compile(&object, file, parent, &pentry)) {
-            printf("[INFO] %s\\%s up to date\n", parent->data, name->data);
-            // Use cached obj file
+            printf("[INFO] %s up to date\n", path.data);
             cbstr_list_push(&objects, cbstr_copy(&pentry->obj));
             cbstr_free(&object);
+            cbstr_free(&path);
             continue;
         }
 
+        cbstr_free(&path);
         cbstr_list_push(&objects, object);
         built = true;
 
@@ -127,12 +122,11 @@ void compile(cbconf_t *conf, dir_t *files) {
                 pentry->write_time = file->write_time;
             }
         } else {
-            printf("[ERROR] '%s' failed with code %d!\n", command.data, ret_val);
+            eprintf("[ERROR] '%s' failed with code %d!\n", command.data, ret_val);
             FREE_ALL();
             return;
         }
     }
-
 
     cbstr_concat_format(&conf->project, CB_CSTR("-%s.exe"), &conf->rule);
     temp = cbstr_with_cap(conf->rule.len + 16);
@@ -161,7 +155,7 @@ void compile(cbconf_t *conf, dir_t *files) {
     ret_val = system(command.data);
 
     if (ret_val != 0) {
-        printf("[ERROR] '%s' failed with code %d!\n", command.data, ret_val);
+        eprintf("[ERROR] '%s' failed with code %d!\n", command.data, ret_val);
         MoveFileA(temp.data, conf->project.data);
     }
 
@@ -177,7 +171,7 @@ cbconf_t load_config(int argc, char **argv) {
 
     config_file = fopen("cbuild", "rb");
     if (!config_file) {
-        printf("[ERROR] Failed to open cbuild config.\n");
+        eprintf("[ERROR] Failed to open cbuild config.\n");
         exit(1);
     }
 

@@ -3,9 +3,10 @@
 /// cbconf.h implementation.
 /// Copyright (c) zebubull 2023
 
+#include "cbconf.h"
 #include "../util/cbstr.h"
 #include "../util/cbsplit.h"
-#include "cbconf.h"
+#include "../util/cblog.h"
 
 #include <stdlib.h>
 
@@ -32,7 +33,7 @@ cbconf_t cbconf_init(char *buffer, size_t len, int argc, char **argv) {
 
         if (strncmp("rule", view.data, view.len) == 0) {
             if (!cbsplit_next(&view)) {
-                printf("[ERROR] Unexpected EOS in cbuild conf.\n");
+                eprintf("[ERROR] Unexpected EOS in cbuild conf.\n");
                 exit(1);
             }
 
@@ -43,11 +44,12 @@ cbconf_t cbconf_init(char *buffer, size_t len, int argc, char **argv) {
             } else {
                 ignore_rule = strncmp(rule.data, view.data, view.len) != 0;
             }
-
+            continue;
         }
 
         if (strncmp("endrule", view.data, view.len) == 0) {
             ignore_rule = false;
+            continue;
         }
 
         if (ignore_rule) {
@@ -57,32 +59,32 @@ cbconf_t cbconf_init(char *buffer, size_t len, int argc, char **argv) {
         if (strncmp("source", view.data, view.len) == 0) {
             if (!has_source) {
                 if (!cbsplit_next(&view)) {
-                    printf("[ERROR] Unexpected EOS in cbuild conf.\n");
+                    eprintf("[ERROR] Unexpected EOS in cbuild conf.\n");
                     exit(1);
                 }
 
                 config.source = cbstr_from_cstr(view.data, view.len);
                 has_source = true;
             } else {
-                printf("[ERROR] Multiple definition of source\n");
+                eprintf("[ERROR] Multiple definition of source\n");
                 exit(1);
             }
         } else if (strncmp("project", view.data, view.len) == 0) {
             if (!has_proj) {
                 if (!cbsplit_next(&view)) {
-                    printf("[ERROR] Unexpected EOS in cbuild conf.\n");
+                    eprintf("[ERROR] Unexpected EOS in cbuild conf.\n");
                     exit(1);
                 }
 
                 config.project = cbstr_from_cstr(view.data, view.len);
                 has_proj = true;
             } else {
-                printf("[ERROR] Multiple definition of project\n");
+                eprintf("[ERROR] Multiple definition of project\n");
                 exit(1);
             }
         } else if (strncmp("cache", view.data, view.len) == 0) {
             if (!cbsplit_next(&view)) {
-                printf("[ERROR] Unexpected EOS in cbuild conf.\n");
+                eprintf("[ERROR] Unexpected EOS in cbuild conf.\n");
                 exit(1);
             }
             
@@ -91,28 +93,33 @@ cbconf_t cbconf_init(char *buffer, size_t len, int argc, char **argv) {
             } else if (strncmp("off", view.data, view.len) == 0) {
                 config.cache = false;
             } else {
-                printf("[ERROR] Unknown cache mode in cbuild conf.\n");
+                eprintf("[ERROR] Unknown cache mode in cbuild conf.\n");
                 exit(1);
             }
         } else if (strncmp("define", view.data, view.len) == 0) {
             if (!cbsplit_next(&view)) {
-                printf("[ERROR] Unexpected EOS in cbuild conf.\n");
+                eprintf("[ERROR] Unexpected EOS in cbuild conf.\n");
                 exit(1);
             }
 
             cbstr_list_push(&config.defines, cbstr_from_cstr(view.data, view.len));
         } else if (strncmp("flag", view.data, view.len) == 0) {
             if (!cbsplit_next(&view)) {
-                printf("[ERROR] Unexpected EOS in cbuild conf.\n");
+                eprintf("[ERROR] Unexpected EOS in cbuild conf.\n");
                 exit(1);
             }
 
             cbstr_list_push(&config.flags, cbstr_from_cstr(view.data, view.len));
+        } else {
+            char cache = view.data[view.len];
+            view.data[view.len] = 0;
+            eprintf("[WARNING] Ignoring unknown directive '%s'\n", view.data);
+            view.data[view.len] = cache;
         }
     }
 
     if (!has_proj || !has_source) {
-        printf("[ERROR] not enough information specified in cbuild...\n");
+        eprintf("[ERROR] not enough information specified in cbuild...\n");
         exit(1);
     }
 
