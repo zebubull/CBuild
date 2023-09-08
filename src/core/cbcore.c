@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
-#include <windows.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 #include "cbcore.h"
 #include "cbconf.h"
@@ -30,8 +30,7 @@ bool needs_compile(cbstr_t *object, dir_entry_t *file, cbstr_t *parent, time_ent
         return true;
     }
 
-    DWORD attr = GetFileAttributesA(object->data);
-    return attr == INVALID_FILE_ATTRIBUTES;
+    return !file_exists(object->data);
 }
 
 void set_compiler_stub(cbconf_t *conf, cbstr_t *str) {
@@ -60,7 +59,7 @@ void compile(cbconf_t *conf, dir_t *files) {
     cbstr_list_t objects = cbstr_list_init(files->entries.len >> 1);
     bool built = false;
 
-    CreateDirectoryA(".cbuild", NULL);
+    create_dir(".cbuild");
 
     cbstr_t command = cbstr_with_cap(COMMAND_SIZE);
     set_compiler_stub(conf, &command);
@@ -83,8 +82,15 @@ void compile(cbconf_t *conf, dir_t *files) {
         cbstr_concat_format(&path, CB_CSTR("\\%s"), name);
 
         object = cbstr_with_cap(32);
-        cbstr_concat_format(&object, CB_CSTR("obj\\%s\\"), conf->rule);
+        #ifdef _WIN32
+        cbstr_concat_format(&object, CB_CSTR("obj\\win32\\%s\\"), conf->rule);
+        #endif /* _WIN32 */
+
+        #ifdef __linux__
+        cbstr_concat_format(&object, CB_CSTR("obj\\linux\\%s\\"), conf->rule);
+        #endif /* __linux__ */
         cbstr_concat_slice(&object, parent, conf->source.len);
+        create_dir(object.data);
         cbstr_concat_format(&object, CB_CSTR("\\%s"), name);
 
         object.data[object.len-2] = 'o';
@@ -138,11 +144,14 @@ void compile(cbconf_t *conf, dir_t *files) {
         return;
     }
 
+    // Cache only does stuff on windows
+    #ifdef _WIN32
     if (conf->cache) {
         printf("[INFO] Relocating .exe to cache...\n");
         DeleteFileA(temp.data);
         MoveFileA(conf->project.data, temp.data);
     }
+    #endif /* _WIN32 */
 
     cbstr_clear(&command);
     cbstr_concat_format(&command, CB_CSTR("gcc -g -o %s "), &conf->project);
@@ -156,7 +165,10 @@ void compile(cbconf_t *conf, dir_t *files) {
 
     if (ret_val != 0) {
         eprintf("[ERROR] '%s' failed with code %d!\n", command.data, ret_val);
+        // This moves the cached file back to its original location. Only needed on windows as cache only works on windows
+        #ifdef _WIN32
         MoveFileA(temp.data, conf->project.data);
+        #endif /* _WIN32 */
     }
 
     FREE_ALL();
@@ -229,7 +241,7 @@ int cb_main(int argc, char **argv) {
     files = walk_dir(config.source);
 
     timetable_path = cbstr_with_cap(19 + config.rule.len);
-    cbstr_concat_format(&timetable_path, CB_CSTR(".cbuild\\%s-timetable"), &config.rule);
+    cbstr_concat_format(&timetable_path, CB_CSTR(".cbuild/%s-timetable"), &config.rule);
 
     load_timetable(timetable_path);
 

@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "../mem/cbmem.h"
 #include "../util/cbstr.h"
@@ -14,7 +15,7 @@ typedef struct time_entry {
     cbstr_t file;
     cbstr_t parent;
     cbstr_t obj;
-    int64_t write_time;
+    time_t write_time;
 } time_entry_t;
 
 typedef struct time_table {

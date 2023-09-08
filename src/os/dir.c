@@ -4,7 +4,23 @@
 /// Copyright (c) zebubull 2023
 #include "dir.h"
 
+#ifdef _WIN32
 #include <windows.h>
+#include <ShlObj.h>
+
+#define PATH_SEP '\\'
+#define PATH_SEP_WIDE "\\"
+#endif /* _WIN32 */
+
+#ifdef __linux__
+#include <dirent.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <errno.h>
+
+#define PATH_SEP '/'
+#define PATH_SEP_WIDE "/"
+#endif /* __linux__ */
 #include <stdbool.h>
 
 #include "../mem/cbmem.h"
@@ -24,7 +40,9 @@ void dir_free(dir_t *dir) {
 
 // TODO: make all of this code platform agnostic
 
-void walk_dir_recursive(dir_t *dir, cbstr_t path) {
+#ifdef _WIN32
+
+void walk_dir_windows(dir_t *dir, cbstr_t path) {
     cbstr_t root;
 
     size_t name_index;
@@ -51,7 +69,7 @@ void walk_dir_recursive(dir_t *dir, cbstr_t path) {
             new_path = cbstr_copy(cbstr_list_get(&dir->dir_names, name_index));
             cbstr_concat_cstr(&new_path, "\\", 2);
             cbstr_concat_cstr(&new_path, find.cFileName, strnlen(find.cFileName, 260)+1);
-            walk_dir_recursive(dir, new_path);
+            walk_dir_windows(dir, new_path);
         } else {
             dir_entry_t entry;
             entry.parent = name_index;
@@ -61,14 +79,79 @@ void walk_dir_recursive(dir_t *dir, cbstr_t path) {
         }
     } while (FindNextFileA(walk_handle, &find));
 
+    FindClose(walk_handle);
     cbstr_free(&root);
 }
+
+#endif /* _WIN32 */
+
+#ifdef __linux__
+
+void walk_dir_linux(dir_t *dir, cbstr_t path) {
+    cbstr_t root;
+
+    size_t name_index;
+    DIR *dir_handle;
+    struct dirent *dirent;
+
+    cbstr_list_push(&dir->dir_names, path);
+    name_index = dir->dir_names.len - 1;
+    root = cbstr_copy(&path);
+
+    dir_handle = opendir(root.data);
+
+    if (dir_handle == NULL) {
+        return;
+    }
+
+    while ((dirent = readdir(dir_handle))) {
+        struct stat statbuf;
+        // Will go into dir name table and be freed later or get freed if not a dir
+        cbstr_t full_path;
+
+        full_path = cbstr_copy(cbstr_list_get(&dir->dir_names, name_index));
+        cbstr_concat_cstr(&full_path, "/", 2);
+        cbstr_concat_cstr(&full_path, dirent->d_name, strnlen(dirent->d_name, 256)+1);
+
+        lstat(dirent->d_name, &statbuf);
+
+
+        bool is_dir = statbuf.st_mode & S_IFDIR;
+
+        if (is_dir) {
+            if (dirent->d_name[0] == '.' && (dirent->d_name[1] == 0 || (dirent->d_name[1] == '.' && dirent->d_name[2] == 0))) {
+                continue;
+            }
+            walk_dir_linux(dir, full_path);
+        } else {
+            dir_entry_t entry;
+            entry.parent = name_index;
+            entry.filename = cbstr_from_cstr(dirent->d_name, strnlen(dirent->d_name, 256)+1);
+            entry.write_time = statbuf.st_mtim.tv_sec;
+            entry_list_push(&dir->entries, entry);
+            cbstr_free(&full_path);
+        }
+    }
+
+    closedir(dir_handle);
+    cbstr_free(&root);
+}
+
+#endif
 
 dir_t walk_dir(cbstr_t path) {
     dir_t dir = dir_init();
 
+    // Will go into dir name table and be freed later
     cbstr_t root = cbstr_copy(&path);
-    walk_dir_recursive(&dir, root);
+
+    #ifdef _WIN32
+    walk_dir_windows(&dir, root);
+    #endif
+
+    #ifdef __linux__
+    walk_dir_linux(&dir, root);
+    #endif
 
     return dir;
 }
@@ -98,4 +181,63 @@ void entry_list_free(entry_list_t *list) {
         cbstr_free(&list->entries[i].filename);
     }
     FREE(list->entries);
+}
+
+void create_dir(char *path) {
+    bool success;
+    #ifdef _WIN32
+    success = CreateDirectoryA(path, NULL) != 0;
+
+    if (!success) {
+        success = GetLastError() == ERROR_ALREADY_EXISTS;
+    }
+    #endif /* _WIN32 */
+
+    #ifdef __linux__
+    success = mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == 0;
+    if (!success) {
+        success = errno != ENOENT;
+    }
+    #endif /* __linux__ */
+
+    if (!success) {
+        size_t len;
+        size_t i;
+
+        len = strnlen(path, 260);
+        for (i = len; i > 0; --i) {
+            if (path[i] == PATH_SEP) {
+                break;
+            }
+        }
+
+        if (i == 0) {
+            return;
+        }
+
+        path[i] = 0;
+        create_dir(path);
+        path[i] = PATH_SEP;
+
+        #ifdef _WIN32
+        CreateDirectoryA(path, NULL);
+        #endif /* _WIN32 */
+
+        #ifdef __linux__
+        mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == 0;
+        #endif /* __linux__ */
+    }
+}
+
+bool file_exists(const char *path) {
+
+    #ifdef _WIN32
+    DWORD attr = GetFileAttributesA(path);
+    return attr != INVALID_FILE_ATTRIBUTES;
+    #endif /* _WIN32 */
+
+    #ifdef __linux__
+    struct stat buffer;
+    return (stat(path, &buffer) == 0);
+    #endif /* __linux__ */
 }

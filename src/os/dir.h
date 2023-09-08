@@ -5,16 +5,13 @@
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
+#include <time.h>
 #include "../util/cbstr.h"
-
-#ifndef _WIN32
-#error "The dir module only supports windows"
-#endif
 
 typedef struct dir_entry {
     size_t parent;
     cbstr_t filename;
-    int64_t write_time;
+    time_t write_time;
 } dir_entry_t;
 
 typedef struct entry_list {
@@ -35,5 +32,8 @@ entry_list_t entry_list_init(size_t cap);
 void entry_list_push(entry_list_t *list, dir_entry_t entry);
 dir_entry_t* entry_list_get(entry_list_t *list, size_t item);
 void entry_list_free(entry_list_t *list);
+
+void create_dir(char *path);
+bool file_exists(const char *path);
 
 // TODO: add api for creating directories and checking if files exist
