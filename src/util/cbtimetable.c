@@ -5,7 +5,9 @@
 #include "cbtimetable.h"
 
 #include "cbstr.h"
+#include "../os/osdef.h"
 #include "../mem/cbmem.h"
+
 #include <stdio.h>
 
 void ALLOC_DEF(time_entry_free, time_entry_t *entry) {
@@ -48,28 +50,44 @@ void time_table_push(time_table_t *table, time_entry_t entry) {
 }
 
 void time_table_save(time_table_t *table, FILE *file) {
+    #ifdef _WIN32 
+    #define INT_FORMAT "%I64d "
+    #define FILE_FORMAT "%s %s %s %I64d "
+    #endif
+    #ifdef LINUX
+    #define INT_FORMAT "%lu "
+    #define FILE_FORMAT "%s %s %s %lu "
+    #endif
+
     size_t i;
-    fprintf(file, "%I64d ", table->len);
+    fprintf(file, INT_FORMAT, table->len);
 
     for (i = 0; i < table->len; ++i) {
         time_entry_t *entry = &table->entries[i];
-        fprintf(file, "%s %s %s %I64d ", entry->file.data, entry->parent.data, entry->obj.data, entry->write_time);
+        fprintf(file, FILE_FORMAT, entry->file.data, entry->parent.data, entry->obj.data, entry->write_time);
     }
 }
 
 void time_table_load(time_table_t *table, FILE *file) {
+    #ifdef _WIN32 
+    #define FILE_FORMAT "%260s %260s %260s %I64d "
+    #endif
+    #ifdef LINUX
+    #define FILE_FORMAT "%260s %260s %260s %lu "
+    #endif
+
     size_t len;
     size_t i;
-    fscanf(file, "%I64d", &len);
+    fscanf(file, INT_FORMAT, &len);
     
     for (i = 0; i < len; ++i) {
-        // TODO: this can segfault, fix it
+        // I don't think this can segfault anymore but I don't trust myself
         char name[260];
         char parent[260];
         char obj[260];
         time_entry_t entry;
 
-        if (fscanf(file, "%260s %260s %260s %I64d", name, parent, obj, &entry.write_time) != 4) {
+        if (fscanf(file, FILE_FORMAT, name, parent, obj, &entry.write_time) != 4) {
             printf("[WARNING] Failed to load time table...\n");
             break;
         }
@@ -80,6 +98,8 @@ void time_table_load(time_table_t *table, FILE *file) {
 
         time_table_push(table, entry);
     }
+    #undef FILE_FORMAT
+    #undef INT_FORMAT
 }
 
 time_entry_t *time_table_search(time_table_t *table, cbstr_t *file, cbstr_t *parent) {

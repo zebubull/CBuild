@@ -6,6 +6,7 @@
 #include "cbcore.h"
 #include "cbconf.h"
 #include "../os/dir.h"
+#include "../os/osdef.h"
 #include "../mem/cbmem.h"
 #include "../util/cbtimetable.h"
 #include "../util/cbstr.h"
@@ -79,21 +80,30 @@ void compile(cbconf_t *conf, dir_t *files) {
         parent = cbstr_list_get(&files->dir_names, file->parent);
 
         path = cbstr_copy(parent);
-        cbstr_concat_format(&path, CB_CSTR("\\%s"), name);
+        cbstr_concat_format(&path, CB_CSTR("/%s"), name);
+
+        cbstr_localize_path(&path);
 
         object = cbstr_with_cap(32);
         #ifdef _WIN32
-        cbstr_concat_format(&object, CB_CSTR("obj\\win32\\%s\\"), conf->rule);
+        cbstr_concat_format(&object, CB_CSTR("obj/win32/%s/"), &conf->rule);
         #endif /* _WIN32 */
 
         #ifdef __linux__
-        cbstr_concat_format(&object, CB_CSTR("obj\\linux\\%s\\"), conf->rule);
+        cbstr_concat_format(&object, CB_CSTR("obj/linux/%s/"), &conf->rule);
         #endif /* __linux__ */
+
+        #ifdef __APPLE__
+        cbstr_concat_format(&object, CB_CSTR("obj/osx/%s/"), &conf->rule);
+        #endif /* __APPLE__ */
+
         cbstr_concat_slice(&object, parent, conf->source.len);
         create_dir(object.data);
-        cbstr_concat_format(&object, CB_CSTR("\\%s"), name);
+        cbstr_concat_format(&object, CB_CSTR("/%s"), name);
 
         object.data[object.len-2] = 'o';
+
+        cbstr_localize_path(&object);
 
         command.len = stub_len;
         cbstr_concat_format(&command, CB_CSTR("%s -o %s"), &path, &object);
@@ -134,11 +144,18 @@ void compile(cbconf_t *conf, dir_t *files) {
         }
     }
 
+    #ifdef _WIN32
     cbstr_concat_format(&conf->project, CB_CSTR("-%s.exe"), &conf->rule);
+    #endif /* _WIN32 */
+    #ifdef LINUX
+    cbstr_concat_format(&conf->project, CB_CSTR("-%s.out"), &conf->rule);
+    #endif /* LINUX */
+
     temp = cbstr_with_cap(conf->rule.len + 16);
+    // Only used on windows so this is probably fine
     cbstr_concat_format(&temp, CB_CSTR(".cbuild\\%s.tmp"), &conf->project);
 
-    if (!built) {
+    if (!built && file_exists(conf->project.data)) {
         printf("[INFO] %s up to date\n", conf->project.data);
         FREE_ALL();
         return;
@@ -147,7 +164,7 @@ void compile(cbconf_t *conf, dir_t *files) {
     // Cache only does stuff on windows
     #ifdef _WIN32
     if (conf->cache) {
-        printf("[INFO] Relocating .exe to cache...\n");
+        printf("[INFO] Relocating executable to cache...\n");
         DeleteFileA(temp.data);
         MoveFileA(conf->project.data, temp.data);
     }

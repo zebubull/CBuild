@@ -10,7 +10,7 @@
 #include <stdarg.h>
 
 #include "../mem/cbmem.h"
-
+#include "../os/osdef.h"
 
 cbstr_t ALLOC_DEF(cbstr_from_cstr, const char *cstr, size_t len) {
     cbstr_t str;
@@ -159,6 +159,24 @@ void cbstr_concat_cstr(cbstr_t *a, const char *b, size_t len) {
 
     if (needs_zero) {
         a->data[new_len] = 0;
+    }
+}
+
+void cbstr_localize_path(cbstr_t *str) {
+    size_t i;
+
+    for (i = 0; i < str->len; ++i) {
+        #ifdef _WIN32
+        if (str->data[i] == '/') {
+            str->data[i] = '\\';
+        }
+        #endif /* _WIN32 */
+
+        #ifdef LINUX
+        if (str->data[i] == '\\') {
+            str->data[i] = '/';
+        }
+        #endif /* LINUX */
     }
 }
 

@@ -3,6 +3,9 @@
 /// cbmem.h implementation.
 /// Copyright (c) zebubull 2023
 #include "cbmem.h"
+
+#include "../os/osdef.h"
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -70,12 +73,23 @@ void debug_deinit() {
     for (i = 0; i < alloc_list.len; ++i) {
         alloc_t *alloc = &alloc_list.allocs[i];
         if (!alloc->freed) {
+            #ifdef _WIN32
             printf("[LEAK] %p leaked, alloc from %s:%I64d!\n", alloc->ptr, alloc->file, alloc->line);
+            #endif
+            #ifdef LINUX
+            printf("[LEAK] %p leaked, alloc from %s:%lu!\n", alloc->ptr, alloc->file, alloc->line);
+            #endif
         }
     }
 
+    #ifdef _WIN32
     printf("[DEBUG] %I64d total allocs\n", total_allocs);
     printf("[DEBUG] %I64d expensive reallocs\n", expensive_reallocs);
+    #endif
+    #ifdef LINUX
+    printf("[DEBUG] %lu total allocs\n", total_allocs);
+    printf("[DEBUG] %lu expensive reallocs\n", expensive_reallocs);
+    #endif
 }
 
 void *debug_alloc(size_t size, const char* file, size_t line) {
@@ -108,7 +122,12 @@ void debug_free(void *ptr, const char *file, size_t line) {
     alloc = alloc_list_search(&alloc_list, ptr);
     
     if (alloc->freed) {
+        #ifdef _WIN32
         printf("[DFREE] %p double freed at %s:%I64d, alloc from %s:%I64d!\n", ptr, file, line, alloc->file, alloc->line);
+        #endif
+        #ifdef LINUX
+        printf("[DFREE] %p double freed at %s:%lu, alloc from %s:%lu!\n", ptr, file, line, alloc->file, alloc->line);
+        #endif
     } else {
         CBFREE(alloc->ptr);
         alloc->freed = true;

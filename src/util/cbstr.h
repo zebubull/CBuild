@@ -46,6 +46,7 @@ void cbstr_concat_slice(cbstr_t *a, cbstr_t *b, size_t offset);
 void cbstr_concat_format(cbstr_t *a, const char *format, size_t len, ...);
 void cbstr_concat_cstr(cbstr_t *a, const char *b, size_t len);
 void cbstr_clear(cbstr_t* str);
+void cbstr_localize_path(cbstr_t *str);
 bool cbstr_cmp(cbstr_t *a, cbstr_t *b);
 
 cbstr_list_t ALLOC_DEF(cbstr_list_init, size_t cap);
