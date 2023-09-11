@@ -2,3 +2,4 @@ obj/
 .cbuild/
 .vscode/
 cbuild-*.exe
+cbuild-*.out
