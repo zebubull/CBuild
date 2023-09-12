@@ -12,4 +12,5 @@ endrule
 
 rule release
 define RELEASE
+flag -O4
 endrule
