@@ -17,16 +17,12 @@
 #include <Windows.h>
 #endif /* _WIN32 */
 
-#define FLEN(FILE, X) fseek(FILE, 0, SEEK_END);\
-X = ftell(FILE);\
-fseek(FILE, 0, SEEK_SET)
-
 #define COMMAND_SIZE 1024 * 4
 
-static time_table_t timetable;
+static tt_t timetable;
 
-bool needs_compile(cbstr_t *object, dir_entry_t *file, cbstr_t *parent, time_entry_t **entry) {
-    *entry = time_table_search(&timetable, &file->filename, parent);
+bool needs_compile(cbstr_t *object, dir_entry_t *file, cbstr_t *parent, tt_entry_t **entry) {
+    *entry = tt_search(&timetable, &file->filename, parent);
 
     if (!(*entry)) {
         return true;
@@ -75,7 +71,7 @@ void compile(cbconf_t *conf, dir_t *files) {
         cbstr_t *parent;
         cbstr_t object;
         cbstr_t path;
-        time_entry_t *pentry;
+        tt_entry_t *pentry;
 
         dir_entry_t *file = entry_list_get(&files->entries, i);
         cbstr_t *name = &file->filename;
@@ -104,7 +100,11 @@ void compile(cbconf_t *conf, dir_t *files) {
 
         cbstr_concat_slice(&object, parent, conf->source.len);
         create_dir(object.data);
-        cbstr_concat_format(&object, CB_CSTR("/%s"), name);
+        if (parent->len != conf->source.len) {
+            cbstr_concat_format(&object, CB_CSTR("/%s"), name);
+        } else {
+            cbstr_concat_format(&object, CB_CSTR("%s"), name);
+        }
 
         object.data[object.len-2] = 'o';
 
@@ -115,7 +115,7 @@ void compile(cbconf_t *conf, dir_t *files) {
 
         if (!needs_compile(&object, file, parent, &pentry)) {
             printf("[INFO] %s up to date\n", path.data);
-            cbstr_list_push(&objects, cbstr_copy(&pentry->obj));
+            cbstr_list_push(&objects, cbstr_copy(&pentry->obj_file));
             cbstr_free(&object);
             cbstr_free(&path);
             continue;
@@ -130,16 +130,16 @@ void compile(cbconf_t *conf, dir_t *files) {
 
         if (ret_val == 0) {
             if (pentry == NULL) {
-                time_entry_t entry;
-                entry.file = cbstr_copy(name);
-                entry.parent = cbstr_copy(parent);
-                entry.obj = cbstr_copy(&object);
+                tt_entry_t entry;
+                entry.file_name = cbstr_copy(name);
+                entry.parent_dirs = cbstr_copy(parent);
+                entry.obj_file = cbstr_copy(&object);
                 entry.write_time = file->write_time;
 
-                time_table_push(&timetable, entry);
+                tt_push(&timetable, entry);
             } else {
-                cbstr_free(&pentry->obj);
-                pentry->obj = cbstr_copy(&object);
+                cbstr_free(&pentry->obj_file);
+                pentry->obj_file = cbstr_copy(&object);
                 pentry->write_time = file->write_time;
             }
         } else {
@@ -160,7 +160,7 @@ void compile(cbconf_t *conf, dir_t *files) {
     // Only used on windows so this is probably fine
     cbstr_concat_format(&temp, CB_CSTR(".cbuild\\%s.tmp"), &conf->project);
 
-    if (!built && file_exists(conf->project.data)) {
+    if (!built && timetable.build_success && file_exists(conf->project.data)) {
         printf("[INFO] %s up to date\n", conf->project.data);
         FREE_ALL();
         return;
@@ -185,7 +185,9 @@ void compile(cbconf_t *conf, dir_t *files) {
     printf("[CMD] %s\n", command.data);
     ret_val = system(command.data);
 
-    if (ret_val != 0) {
+    timetable.build_success = ret_val == 0;
+
+    if (!timetable.build_success) {
         eprintf("[ERROR] '%s' failed with code %d!\n", command.data, ret_val);
         // This moves the cached file back to its original location. Only needed on windows as cache only works on windows
         #ifdef _WIN32
@@ -227,25 +229,24 @@ cbconf_t load_config(int argc, char **argv) {
 void load_timetable(cbstr_t path) {
     FILE *timetable_file;
 
-    timetable = time_table_init(4);
-
-    timetable_file = fopen(path.data, "r");
+    timetable_file = fopen(path.data, "rb");
 
     if (timetable_file) {
-        time_table_load(&timetable, timetable_file);
+        tt_load(&timetable, timetable_file);
         fclose(timetable_file);
     } else {
         printf("[WARNING] Could not open timetable file.\n");
+        timetable = tt_init(4);
     }
 }
 
 void save_timetable(cbstr_t path) {
     FILE *timetable_file;
 
-    timetable_file = fopen(path.data, "w");
+    timetable_file = fopen(path.data, "wb");
 
     if (timetable_file) {
-        time_table_save(&timetable, timetable_file);
+        tt_save(&timetable, timetable_file);
         fclose(timetable_file);
     } else {
         printf("[WARNING] Could not open timetable file.\n");
@@ -271,7 +272,7 @@ int cb_main(int argc, char **argv) {
 
     save_timetable(timetable_path);
 
-    time_table_free(&timetable);
+    tt_free(&timetable);
     cbstr_free(&timetable_path);
     dir_free(&files);
     cbconf_free(&config);
