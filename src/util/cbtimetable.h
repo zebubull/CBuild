@@ -2,6 +2,7 @@
 /// cbtimetable.h
 /// A header for keeping track of file write times.
 /// Copyright (c) zebubull 2023
+
 #pragma once
 
 #include <stdint.h>
@@ -24,18 +25,22 @@ typedef struct time_table {
     size_t capacity;
 } time_table_t;
 
-#ifndef RELEASE
-
+#ifdef DEBUG
 #define time_entry_free(entry) d_time_entry_free(entry, __FILE__, __LINE__)
 #define time_table_init(cap) d_time_table_init(cap, __FILE__, __LINE__)
 #define time_table_free(table) d_time_table_free(table, __FILE__, __LINE__)
+#endif /* DEBUG */
 
+#ifdef RELEASE
+#define time_entry_free(entry) d_time_entry_free(entry)
+#define time_table_init(cap) d_time_table_init(cap)
+#define time_table_free(table) d_time_table_free(table)
 #endif /* RELEASE */
 
 void ALLOC_DEF(time_entry_free, time_entry_t *entry);
-
 time_table_t ALLOC_DEF(time_table_init, size_t cap);
 void ALLOC_DEF(time_table_free, time_table_t *table);
+
 void time_table_push(time_table_t *table, time_entry_t entry);
 void time_table_save(time_table_t *table, FILE *file);
 void time_table_load(time_table_t *table, FILE *file);

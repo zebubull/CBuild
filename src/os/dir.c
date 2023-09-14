@@ -13,7 +13,7 @@
 #define PATH_SEP_WIDE "\\"
 #endif /* _WIN32 */
 
-#ifdef LINUX
+#ifdef UNIX
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -21,7 +21,7 @@
 
 #define PATH_SEP '/'
 #define PATH_SEP_WIDE "/"
-#endif /* LINUX */
+#endif /* UNIX */
 #include <stdbool.h>
 
 #include "../mem/cbmem.h"
@@ -86,7 +86,7 @@ void walk_dir_windows(dir_t *dir, cbstr_t path) {
 
 #endif /* _WIN32 */
 
-#ifdef LINUX
+#ifdef UNIX
 
 void walk_dir_linux(dir_t *dir, cbstr_t path) {
     cbstr_t root;
@@ -143,7 +143,7 @@ void walk_dir_linux(dir_t *dir, cbstr_t path) {
     cbstr_free(&root);
 }
 
-#endif /* LINUX */
+#endif /* UNIX */
 
 dir_t walk_dir(cbstr_t path) {
     dir_t dir = dir_init();
@@ -155,7 +155,7 @@ dir_t walk_dir(cbstr_t path) {
     walk_dir_windows(&dir, root);
     #endif
 
-    #ifdef LINUX
+    #ifdef UNIX
     walk_dir_linux(&dir, root);
     #endif
 
@@ -199,12 +199,12 @@ void create_dir(char *path) {
     }
     #endif /* _WIN32 */
 
-    #ifdef LINUX
+    #ifdef UNIX
     success = mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == 0;
     if (!success) {
         success = errno != ENOENT;
     }
-    #endif /* LINUX */
+    #endif /* UNIX */
 
     if (!success) {
         size_t len;
@@ -229,9 +229,9 @@ void create_dir(char *path) {
         CreateDirectoryA(path, NULL);
         #endif /* _WIN32 */
 
-        #ifdef LINUX
+        #ifdef UNIX
         mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-        #endif /* LINUX */
+        #endif /* UNIX */
     }
 }
 
@@ -242,8 +242,8 @@ bool file_exists(const char *path) {
     return attr != INVALID_FILE_ATTRIBUTES;
     #endif /* _WIN32 */
 
-    #ifdef LINUX
+    #ifdef UNIX
     struct stat buffer;
     return (stat(path, &buffer) == 0);
-    #endif /* LINUX */
+    #endif /* UNIX */
 }

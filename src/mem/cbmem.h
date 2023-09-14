@@ -25,15 +25,17 @@
 
 #ifndef RELEASE
 
-#define ALLOC_DEF(func, ...) d_ ## func(__VA_ARGS__, const char *file, size_t l)
+#define ALLOC_DEF(fn, ...) d_ ## fn(__VA_ARGS__, const char *file, size_t line)
 #define MALLOC(s) debug_alloc(s, __FILE__, __LINE__)
 #define FREE(p) debug_free(p, __FILE__, __LINE__)
 
-#define MALLOCW(s, f, l) debug_alloc(s, f, l)
-#define FREEW(p, f, l) debug_free(p, f, l)
+#define WMALLOC(s, f, l) debug_alloc(s, f, l)
+#define WFREE(p, f, l) debug_free(p, f, l)
 
-#define FMALLOC(len) MALLOCW(len, file, l)
-#define FFREE(ptr) FREEW(ptr, file, l)
+#define FMALLOC(len) WMALLOC(len, file, line)
+#define FFREE(ptr) WFREE(ptr, file, line)
+
+#define FORWARD(call, ...) d_ ## call(__VA_ARGS__, file, line)
 
 #define REALLOC(p, s) debug_realloc(p, s)
 
@@ -42,15 +44,18 @@
 
 #else
 
-#define ALLOC_DEF(func, ...) func(__VA_ARGS__)
+#define ALLOC_DEF(fn, ...) d_ ## fn(__VA_ARGS__)
 #define MALLOC(s) CBMALLOC(s)
 #define FREE(p) CBFREE(p)
 
-#define MALLOCW(s, f, l) MALLOC(s)
-#define FREEW(p, f, l) FREE(s)
+#define WMALLOC(s, f, l) MALLOC(s)
+#define WFREE(p, f, l) FREE(s)
 
 #define FMALLOC(len) MALLOC(len)
 #define FFREE(ptr) FREE(ptr)
+
+#define FORWARD(call, ...) d_ ## call(__VA_ARGS__)
+
 
 #define REALLOC(p, s) CBREALLOC(p, s)
 

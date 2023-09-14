@@ -3,7 +3,7 @@ project cbuild
 cache on
 
 flag -Wall
-flag -std=gnu99
+flag -std=gnu17
 
 rule debug
 define DEBUG

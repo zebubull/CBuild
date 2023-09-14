@@ -11,9 +11,9 @@
 #include <stdio.h>
 
 void ALLOC_DEF(time_entry_free, time_entry_t *entry) {
-    cbstr_free(&entry->file);
-    cbstr_free(&entry->parent);
-    cbstr_free(&entry->obj);
+    FORWARD(cbstr_free, &entry->file);
+    FORWARD(cbstr_free, &entry->parent);
+    FORWARD(cbstr_free, &entry->obj);
 }
 
 time_table_t ALLOC_DEF(time_table_init, size_t cap) {
@@ -29,11 +29,7 @@ void ALLOC_DEF(time_table_free, time_table_t *table) {
     size_t i;
 
     for (i = 0; i < table->len; ++i) {
-        #ifndef RELEASE
-        d_time_entry_free(&table->entries[i], file, l);
-        #else 
-        time_entry_free(&table->entries[i]);
-        #endif
+        FORWARD(time_entry_free, &table->entries[i]);
     }
 
     FFREE(table->entries);
@@ -53,11 +49,11 @@ void time_table_save(time_table_t *table, FILE *file) {
     #ifdef _WIN32 
     #define INT_FORMAT "%I64d "
     #define FILE_FORMAT "%s %s %s %I64d "
-    #endif
-    #ifdef LINUX
+    #endif /* _WIN32 */
+    #ifdef UNIX
     #define INT_FORMAT "%lu "
     #define FILE_FORMAT "%s %s %s %lu "
-    #endif
+    #endif /* UNIX */
 
     size_t i;
     fprintf(file, INT_FORMAT, table->len);
@@ -69,12 +65,13 @@ void time_table_save(time_table_t *table, FILE *file) {
 }
 
 void time_table_load(time_table_t *table, FILE *file) {
+    #undef FILE_FORMAT
     #ifdef _WIN32 
     #define FILE_FORMAT "%260s %260s %260s %I64d "
-    #endif
-    #ifdef LINUX
+    #endif /* _WIN32 */
+    #ifdef UNIX
     #define FILE_FORMAT "%260s %260s %260s %lu "
-    #endif
+    #endif /* UNIX */
 
     size_t len;
     size_t i;
@@ -98,6 +95,7 @@ void time_table_load(time_table_t *table, FILE *file) {
 
         time_table_push(table, entry);
     }
+
     #undef FILE_FORMAT
     #undef INT_FORMAT
 }

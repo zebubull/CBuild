@@ -76,7 +76,7 @@ void debug_deinit() {
             #ifdef _WIN32
             printf("[LEAK] %p leaked, alloc from %s:%I64d!\n", alloc->ptr, alloc->file, alloc->line);
             #endif
-            #ifdef LINUX
+            #ifdef UNIX
             printf("[LEAK] %p leaked, alloc from %s:%lu!\n", alloc->ptr, alloc->file, alloc->line);
             #endif
         }
@@ -86,7 +86,7 @@ void debug_deinit() {
     printf("[DEBUG] %I64d total allocs\n", total_allocs);
     printf("[DEBUG] %I64d expensive reallocs\n", expensive_reallocs);
     #endif
-    #ifdef LINUX
+    #ifdef UNIX
     printf("[DEBUG] %lu total allocs\n", total_allocs);
     printf("[DEBUG] %lu expensive reallocs\n", expensive_reallocs);
     #endif
@@ -125,7 +125,7 @@ void debug_free(void *ptr, const char *file, size_t line) {
         #ifdef _WIN32
         printf("[DFREE] %p double freed at %s:%I64d, alloc from %s:%I64d!\n", ptr, file, line, alloc->file, alloc->line);
         #endif
-        #ifdef LINUX
+        #ifdef UNIX
         printf("[DFREE] %p double freed at %s:%lu, alloc from %s:%lu!\n", ptr, file, line, alloc->file, alloc->line);
         #endif
     } else {

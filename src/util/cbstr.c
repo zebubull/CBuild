@@ -12,6 +12,7 @@
 #include "../mem/cbmem.h"
 #include "../os/osdef.h"
 
+
 cbstr_t ALLOC_DEF(cbstr_from_cstr, const char *cstr, size_t len) {
     cbstr_t str;
 
@@ -163,21 +164,26 @@ void cbstr_concat_cstr(cbstr_t *a, const char *b, size_t len) {
 }
 
 void cbstr_localize_path(cbstr_t *str) {
+    #define WIN_PATH_SEP '\\'
+    #define UNIX_PATH_SEP '/'
     size_t i;
 
     for (i = 0; i < str->len; ++i) {
         #ifdef _WIN32
-        if (str->data[i] == '/') {
-            str->data[i] = '\\';
+        if (str->data[i] == UNIX_PATH_SEP) {
+            str->data[i] = WIN_PATH_SEP;
         }
         #endif /* _WIN32 */
 
-        #ifdef LINUX
-        if (str->data[i] == '\\') {
-            str->data[i] = '/';
+        #ifdef UNIX
+        if (str->data[i] == WIN_PATH_SEP) {
+            str->data[i] = UNIX_PATH_SEP;
         }
-        #endif /* LINUX */
+        #endif /* UNIX */
     }
+
+    #undef WIN_PATH_SEP
+    #undef UNIX_PATH_SEP
 }
 
 bool cbstr_cmp(cbstr_t *a, cbstr_t *b) {
@@ -203,11 +209,7 @@ cbstr_list_t ALLOC_DEF(cbstr_list_init, size_t cap) {
 
 void ALLOC_DEF(cbstr_list_free, cbstr_list_t *list) {
     for (size_t i = 0; i < list->len; ++i) {
-        #ifndef RELEASE
-        d_cbstr_free(&list->strings[i], file, l);
-        #else
-        cbstr_free(&list->strings[i]);
-        #endif
+        FORWARD(cbstr_free, &list->strings[i]);
     }
     FFREE(list->strings);
 }

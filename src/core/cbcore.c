@@ -12,6 +12,11 @@
 #include "../util/cbstr.h"
 #include "../util/cblog.h"
 
+#ifdef _WIN32
+// I haven't written wrappers for deleting and moving files so some win32 api is still needed
+#include <Windows.h>
+#endif /* _WIN32 */
+
 #define FLEN(FILE, X) fseek(FILE, 0, SEEK_END);\
 X = ftell(FILE);\
 fseek(FILE, 0, SEEK_SET)
@@ -86,7 +91,7 @@ void compile(cbconf_t *conf, dir_t *files) {
 
         object = cbstr_with_cap(32);
         #ifdef _WIN32
-        cbstr_concat_format(&object, CB_CSTR("obj/win32/%s/"), &conf->rule);
+        cbstr_concat_format(&object, CB_CSTR("obj\\win32\\%s\\"), &conf->rule);
         #endif /* _WIN32 */
 
         #ifdef __linux__
@@ -147,9 +152,9 @@ void compile(cbconf_t *conf, dir_t *files) {
     #ifdef _WIN32
     cbstr_concat_format(&conf->project, CB_CSTR("-%s.exe"), &conf->rule);
     #endif /* _WIN32 */
-    #ifdef LINUX
+    #ifdef UNIX
     cbstr_concat_format(&conf->project, CB_CSTR("-%s.out"), &conf->rule);
-    #endif /* LINUX */
+    #endif /* UNIX */
 
     temp = cbstr_with_cap(conf->rule.len + 16);
     // Only used on windows so this is probably fine
